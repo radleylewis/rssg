@@ -46,15 +46,16 @@ fn generate_navbar_list(navbar_items: String) -> String {
     let navbar_items: Vec<&str> = navbar_items.split(',').collect();
     return navbar_items
         .iter()
-        .map(|item| format!("<li><a href='/{}'>{}</a></li>", item.trim(), item.trim()))
+        .map(|item| item.trim())
+        .map(|item| format!("<li><a href='/{}'>{}</a></li>", item, item))
         .collect::<Vec<_>>()
         .join("\n");
 }
 
 pub fn init_project() -> Result<(), std::io::Error> {
-    let src_directory = "site";
-    let assets_directory = "site/assets";
-    let templates_directory = "site/templates";
+    let src_directory = "dist";
+    let assets_directory = &format!("{src_directory}/assets");
+    let templates_directory = &format!("{src_directory}/templates");
 
     fs::create_dir_all(src_directory)?;
     fs::create_dir_all(assets_directory)?;

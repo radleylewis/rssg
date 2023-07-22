@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 pulldown-cmark = "0.8.0"
-clap = "3.0.0"  # Replace with the latest version of clap
-dialoguer = "0.8.0"  # Replace with the latest version of dialoguer
+clap = "3.0.0"  
+dialoguer = "0.8.0"  
 
