@@ -3,34 +3,28 @@ use std::fs;
 use std::path::Path;
 
 pub fn init_project() -> Result<(), std::io::Error> {
-    let src_directory = "src";
-    let dist_directory = "dist";
+    let src_directory = "site";
+    let assets_directory = "site/assets";
 
-    // Create the source directory
     fs::create_dir_all(src_directory)?;
+    fs::create_dir_all(assets_directory)?;
 
-    // Create the destination directory
-    fs::create_dir_all(dist_directory)?;
-
-    // Get user input for title and description
     let title: String = Input::new()
         .with_prompt("Enter the title of your new website")
         .interact_text()?;
 
     let description: String = Input::new()
-        .with_prompt("Enter the description:")
+        .with_prompt("Enter the description")
         .interact_text()?;
 
-    // Get user input for author and keywords
     let author: String = Input::new()
-        .with_prompt("Enter the author:")
+        .with_prompt("Enter the author")
         .interact_text()?;
 
     let keywords: String = Input::new()
-        .with_prompt("Enter keywords (comma-separated):")
+        .with_prompt("Enter keywords (comma-separated)")
         .interact_text()?;
 
-    // Create the header.html file with additional fields
     let header_content = format!(
         "<!DOCTYPE html>
         <html lang=\"en\">
@@ -58,15 +52,8 @@ pub fn init_project() -> Result<(), std::io::Error> {
     let header_path = Path::new(src_directory).join("header.html");
     fs::write(&header_path, header_content)?;
 
-    // Create a blank styles.css file
     let styles_path = Path::new(src_directory).join("assets/styles.css");
     fs::write(&styles_path, "")?;
-
-    // Create the assets directory and add the favicon.png file (create a blank file for example)
-    let assets_directory = Path::new(src_directory).join("assets");
-    fs::create_dir(&assets_directory)?;
-    let favicon_path = assets_directory.join("favicon.png");
-    fs::write(&favicon_path, "")?;
 
     Ok(())
 }
