@@ -4,7 +4,7 @@ use clap::{App, SubCommand};
 pub fn parse_arguments() -> Result<(), String> {
     let matches = App::new("SSG - Static Site Generator")
         .version("1.0")
-        .author("Your Name")
+        .author("Radley E. Sidwell-Lewis")
         .about("A static site generator written in Rust")
         .subcommand(SubCommand::with_name("init").about("Initialize a new SSG project"))
         .get_matches();
