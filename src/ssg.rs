@@ -2,6 +2,16 @@ use dialoguer::Input;
 use std::fs;
 use std::path::Path;
 
+fn get_project_name() -> Result<String, std::io::Error> {
+    let default_project_name: String = "my-project".to_string();
+    let title: String = Input::new()
+        .with_prompt("What is the name of your new project?")
+        .default(default_project_name)
+        .interact_text()?;
+
+    Ok(title)
+}
+
 fn get_website_title() -> Result<String, std::io::Error> {
     let title: String = Input::new()
         .with_prompt("Enter the title of your new website")
@@ -53,11 +63,11 @@ fn generate_navbar_list(navbar_items: String) -> String {
 }
 
 pub fn init_project() -> Result<(), std::io::Error> {
-    let src_directory = "dist";
-    let assets_directory = &format!("{src_directory}/assets");
-    let templates_directory = &format!("{src_directory}/templates");
+    let project_name: String = get_project_name()?;
+    let assets_directory = &format!("{project_name}/assets");
+    let templates_directory = &format!("{project_name}/templates");
 
-    fs::create_dir_all(src_directory)?;
+    fs::create_dir_all(project_name)?;
     fs::create_dir_all(assets_directory)?;
     fs::create_dir_all(templates_directory)?;
 
