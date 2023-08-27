@@ -54,6 +54,15 @@ fn get_website_pages() -> Result<String, std::io::Error> {
     Ok(navbar_items)
 }
 
+fn sanitise_string(page_name: &str) -> String {
+    let sanitised_page_name = page_name
+        .trim()
+        .to_lowercase()
+        .replace(" ", "_")
+        .to_string();
+    sanitised_page_name
+}
+
 fn generate_navbar_list(navbar_items: String) -> String {
     let navbar_items: Vec<&str> = navbar_items.split(',').collect();
     return navbar_items
@@ -70,7 +79,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
     let templates_directory = &format!("{project_name}/templates");
     let pages_directory = &format!("{project_name}/pages");
 
-    fs::create_dir_all(project_name.clone())?;
+    fs::create_dir_all(sanitise_string(&project_name))?;
     fs::create_dir_all(assets_directory)?;
     fs::create_dir_all(templates_directory)?;
     fs::create_dir_all(pages_directory)?;
@@ -82,10 +91,10 @@ pub fn init_project() -> Result<(), std::io::Error> {
     let pages: String = get_website_pages()?;
 
     // create the blank markdown pages
-    for page in pages.split(',') {
-        let page_name = format!("{}/pages/{}.md", project_name, page);
+    for page in pages.split(',').map(sanitise_string) {
+        let page_path = format!("{}/pages/{}.md", project_name, page);
         let page_content = "## Add your content here";
-        let mut page_file = File::create(page_name)?;
+        let mut page_file = File::create(page_path)?;
         page_file.write_all(page_content.as_bytes())?;
     }
 
