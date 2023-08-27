@@ -100,6 +100,11 @@ pub fn init_project() -> Result<(), std::io::Error> {
     let keywords: String = get_website_keywords()?;
     let pages: String = get_website_pages()?;
 
+    let home_page = format!("{}/index.md", pages_directory);
+    let home_page_content = "# Add your home page content here";
+    let mut home_page_file = File::create(home_page)?;
+    home_page_file.write_all(home_page_content.as_bytes())?;
+
     // create the blank markdown pages
     for page in pages.split(',') {
         let page_directory = format!("{}/pages/{}", project_name, sanitise_string(page));
