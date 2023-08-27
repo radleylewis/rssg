@@ -1,5 +1,5 @@
 mod cli;
-mod ssg;
+mod init;
 
 fn main() {
     if let Err(e) = cli::parse_arguments() {
