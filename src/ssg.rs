@@ -1,5 +1,7 @@
 use dialoguer::Input;
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 
 fn get_project_name() -> Result<String, std::io::Error> {
@@ -44,7 +46,7 @@ fn get_website_keywords() -> Result<String, std::io::Error> {
     Ok(keywords)
 }
 
-fn get_website_navbar_items() -> Result<String, std::io::Error> {
+fn get_website_pages() -> Result<String, std::io::Error> {
     let navbar_items: String = Input::new()
         .with_prompt("Enter navbar items (comma-separated)")
         .interact_text()?;
@@ -66,18 +68,28 @@ pub fn init_project() -> Result<(), std::io::Error> {
     let project_name: String = get_project_name()?;
     let assets_directory = &format!("{project_name}/assets");
     let templates_directory = &format!("{project_name}/templates");
+    let pages_directory = &format!("{project_name}/pages");
 
-    fs::create_dir_all(project_name)?;
+    fs::create_dir_all(project_name.clone())?;
     fs::create_dir_all(assets_directory)?;
     fs::create_dir_all(templates_directory)?;
+    fs::create_dir_all(pages_directory)?;
 
     let title: String = get_website_title()?;
     let author: String = get_website_author()?;
     let description: String = get_website_description()?;
     let keywords: String = get_website_keywords()?;
-    let navbar_items: String = get_website_navbar_items()?;
+    let pages: String = get_website_pages()?;
 
-    let navbar_list = generate_navbar_list(navbar_items);
+    // create the blank markdown pages
+    for page in pages.split(',') {
+        let page_name = format!("{}/pages/{}.md", project_name, page);
+        let page_content = "## Add your content here";
+        let mut page_file = File::create(page_name)?;
+        page_file.write_all(page_content.as_bytes())?;
+    }
+
+    let navbar_list = generate_navbar_list(pages);
 
     let html_content = format!(
         "<!DOCTYPE html>
