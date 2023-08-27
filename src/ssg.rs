@@ -11,7 +11,8 @@ fn get_project_name() -> Result<String, std::io::Error> {
         .default(default_project_name)
         .interact_text()?;
 
-    Ok(title)
+    let sanitised_project_name = sanitise_string(&title);
+    Ok(sanitised_project_name)
 }
 
 fn get_website_title() -> Result<String, std::io::Error> {
@@ -60,7 +61,7 @@ fn sanitise_string(page_name: &str) -> String {
         .to_lowercase()
         .replace(" ", "_")
         .to_string();
-    sanitised_page_name
+    return sanitised_page_name;
 }
 
 fn generate_navbar_list(navbar_items: String) -> String {
@@ -75,6 +76,15 @@ fn generate_navbar_list(navbar_items: String) -> String {
 
 pub fn init_project() -> Result<(), std::io::Error> {
     let project_name: String = get_project_name()?;
+    let project_dir = format!("./{}", sanitise_string(&project_name));
+    if fs::metadata(&project_dir).is_ok() {
+        println!("[WARNING] directory '{project_name}' already exists");
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Operation canceled.",
+        ));
+    }
+
     let assets_directory = &format!("{project_name}/assets");
     let templates_directory = &format!("{project_name}/templates");
     let pages_directory = &format!("{project_name}/pages");
@@ -91,9 +101,11 @@ pub fn init_project() -> Result<(), std::io::Error> {
     let pages: String = get_website_pages()?;
 
     // create the blank markdown pages
-    for page in pages.split(',').map(sanitise_string) {
-        let page_path = format!("{}/pages/{}.md", project_name, page);
-        let page_content = "## Add your content here";
+    for page in pages.split(',') {
+        let page_directory = format!("{}/pages/{}", project_name, sanitise_string(page));
+        fs::create_dir_all(page_directory.clone())?;
+        let page_path = format!("{}/index.md", page_directory);
+        let page_content = "# Add your content here";
         let mut page_file = File::create(page_path)?;
         page_file.write_all(page_content.as_bytes())?;
     }
