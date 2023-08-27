@@ -4,6 +4,8 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
+const LOGO: &[u8] = include_bytes!("./assets/logo.png");
+
 fn get_project_name() -> Result<String, std::io::Error> {
     let default_project_name: String = "my-project".to_string();
     let title: String = Input::new()
@@ -93,6 +95,10 @@ pub fn init_project() -> Result<(), std::io::Error> {
     fs::create_dir_all(assets_directory)?;
     fs::create_dir_all(templates_directory)?;
     fs::create_dir_all(pages_directory)?;
+
+    // save the logo to the assets directory
+    let logo_path = format!("{}/logo.png", assets_directory);
+    fs::write(logo_path, LOGO)?;
 
     let title: String = get_website_title()?;
     let author: String = get_website_author()?;
