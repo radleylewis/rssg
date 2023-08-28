@@ -35,18 +35,23 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
     let pages_dir = format!("pages");
     let mut pages = Vec::new();
     read_all_files_and_dirs_recursive(Path::new(&pages_dir), &mut pages)?;
-    println!("pages: {:?}", pages);
 
     for page in pages {
         let template_path = format!("templates/template.html");
         let template_content = fs::read_to_string(&template_path)?;
+
         let page_path = page.path();
+        let filename_with_extension = page_path
+            .file_name()
+            .expect("File name not available")
+            .to_string_lossy();
+
+        let mut parts = filename_with_extension.splitn(2, '.');
+        let filename = parts.next().unwrap_or("");
+        let new_file_name = format!("{}.{}", filename, "html");
         let relative_path = page_path.strip_prefix(Path::new(&pages_dir))?;
-        let relative_path_string = relative_path.to_string_lossy();
-
+        let relative_directory = relative_path.parent().unwrap();
         if let Some(extension) = page_path.extension() {
-            let extension = extension.to_string_lossy();
-
             let content = fs::read_to_string(&page_path)?;
             let html_content: String;
             if extension == "md" {
@@ -54,10 +59,10 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 html_content = content;
             }
-
             let updated_template = template_content.replace("<main></main>", &html_content);
-            let dist_file_path = format!("dist/{}", relative_path_string);
-            println!("dist_file_path: {}", dist_file_path);
+            let dist_path = format!("dist/{}", relative_directory.to_string_lossy());
+            fs::create_dir_all(&dist_path)?;
+            let dist_file_path = format!("{}/{}", dist_path, new_file_name);
             fs::write(&dist_file_path, updated_template)?;
         }
     }
