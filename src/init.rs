@@ -136,7 +136,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
             <meta http-equiv=\"expires\" content=\"Tue, 01 Jan 1980 1:00:00 GMT\" />
             <meta http-equiv=\"pragma\" content=\"no-cache\" />
             <link rel=\"stylesheet\" href=\"./assets/styles.css\" />
-            <link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"./assets/favicon.png\" />
+            <link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"./assets/logo.png\" />
             <title>{title}</title>
             <meta name=\"description\" content=\"{description}\" />
             <meta name=\"author\" content=\"{author}\" />
