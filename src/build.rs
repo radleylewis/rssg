@@ -30,7 +30,10 @@ fn read_all_files_and_dirs_recursive(
 
 pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
     let dist_path = format!("dist");
-    fs::create_dir(&dist_path)?;
+    if fs::metadata(dist_path.clone()).is_ok() {
+        fs::remove_dir_all(dist_path.clone())?;
+    }
+    fs::create_dir_all(&dist_path)?;
 
     let pages_dir = format!("pages");
     let mut pages = Vec::new();
