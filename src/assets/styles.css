@@ -1,0 +1,66 @@
+html {
+  font-family: "Fira Code", "monospace", monospace, "Droid Sans Fallback";
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #fffff0;
+}
+
+.container {
+  flex: 1;
+  max-width: 50rem;
+  margin-left: auto;
+  margin-right: auto;
+  overflow-y: overlay;
+  display: flex;
+  flex-direction: column;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  margin-left: auto;
+}
+
+.navbar {
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  justify-content: space-between;
+}
+
+.navbar__left {
+  display: flex;
+  justify-content: start;
+  padding: 0px;
+}
+
+.navbar__logo {
+  width: 5rem;
+}
+
+.navbar__right {
+  display: flex;
+  padding: 0px;
+  list-style-type: none;
+  padding: 0;
+}
+
+.navbar__link {
+  cursor: pointer;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  margin-left: 7.5px;
+  margin-right: 7.5px;
+}
+
+.navbar__link:focus {
+  outline: none;
+  padding: 5px;
+}

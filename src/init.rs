@@ -5,6 +5,7 @@ use std::io::Write;
 use std::path::Path;
 
 const LOGO: &[u8] = include_bytes!("./assets/logo.png");
+const STYLES: &[u8] = include_bytes!("./assets/styles.css");
 
 fn get_project_name() -> Result<String, std::io::Error> {
     let default_project_name: String = "my-project".to_string();
@@ -71,7 +72,12 @@ fn generate_navbar_list(navbar_items: String) -> String {
     return navbar_items
         .iter()
         .map(|item| item.trim())
-        .map(|item| format!("<li><a href='/{}'>{}</a></li>", item, item))
+        .map(|item| {
+            format!(
+                "<li class=\"navbar__link\"><a href='/{}'>{}</a></li>",
+                item, item
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n");
 }
@@ -96,9 +102,11 @@ pub fn init_project() -> Result<(), std::io::Error> {
     fs::create_dir_all(templates_directory)?;
     fs::create_dir_all(pages_directory)?;
 
-    // save the logo to the assets directory
     let logo_path = format!("{}/logo.png", assets_directory);
     fs::write(logo_path, LOGO)?;
+    println!("STYLES byte array length: {}", STYLES.len());
+    let styles_path = format!("{}/styles.css", assets_directory);
+    fs::write(styles_path, STYLES)?;
 
     let title: String = get_website_title()?;
     let author: String = get_website_author()?;
@@ -144,17 +152,26 @@ pub fn init_project() -> Result<(), std::io::Error> {
             <!-- Add more fields here as needed -->
         </head>
         <body>
+            <div  class=\"container\">
             <header>
-                <nav>
-                    <ul>
+                <nav class=\"navbar\">
+                    <a class=\"navbar__left\" href=\"/\">
+                        <img
+                            class=\"navbar__logo\"
+                            title=\"rssg\"
+                            src=\"./assets/logo.png\"
+                        />
+                    </a>
+                    <ul class=\"navbar__right\">
                         {navbar_list}
                     </ul>
                 </nav>
             </header>
             <main></main>
-            <footer>
+            <footer class=\"footer\">
                 <p>&copy; {author}. </p>
             </footer>
+            </div>
         </body>
         </html>",
     );
