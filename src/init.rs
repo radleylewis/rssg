@@ -104,7 +104,6 @@ pub fn init_project() -> Result<(), std::io::Error> {
 
     let logo_path = format!("{}/logo.png", assets_directory);
     fs::write(logo_path, LOGO)?;
-    println!("STYLES byte array length: {}", STYLES.len());
     let styles_path = format!("{}/styles.css", assets_directory);
     fs::write(styles_path, STYLES)?;
 
@@ -153,25 +152,27 @@ pub fn init_project() -> Result<(), std::io::Error> {
         </head>
         <body>
             <input id=\"theme\" type=\"checkbox\" />
-            <div  class=\"scheme-wrapper\">
-            <header>
-                <nav class=\"navbar\">
-                    <a class=\"navbar__left\" href=\"/\">
-                        <img
-                            class=\"navbar__logo\"
-                            title=\"rssg\"
-                            src=\"./assets/logo.png\"
-                        />
-                    </a>
-                    <ul class=\"navbar__right\">
-                        {navbar_list}
-                    </ul>
-                </nav>
-            </header>
-            <main></main>
-            <footer class=\"footer\">
-                <p>&copy; {author}. </p>
-            </footer>
+            <div class=\"scheme-wrapper\">
+                <div class=\"container\">
+                    <header>
+                        <nav class=\"navbar\">
+                            <a class=\"navbar__left\" href=\"/\">
+                                <img
+                                    class=\"navbar__logo\"
+                                    title=\"rssg\"
+                                    src=\"./assets/logo.png\"
+                                />
+                            </a>
+                            <ul class=\"navbar__right\">
+                                {navbar_list}
+                            </ul>
+                        </nav>
+                    </header>
+                    <main></main>
+                    <footer class=\"footer\">
+                        <p>&copy; {author}. </p>
+                    </footer>
+                </div>
             </div>
         </body>
         </html>",
