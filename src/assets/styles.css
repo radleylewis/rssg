@@ -1,6 +1,87 @@
+/* Font Styles */
+
 html {
   font-family: "Fira Code", "monospace", monospace, "Droid Sans Fallback";
 }
+
+/* Toggle Theme Styles */
+
+:root {
+  --bg: #fffff0; /* ivory */
+  --text: #333333; /* charcoal */
+  --button-bg: #03ffc0; /* electric green */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #333333; /* charcoal */
+    --text: #fffff0; /* ivory */
+    --button-bg: #03ffc0; /* electric green */
+    --button-interior: #333333; /* charcoal */
+  }
+}
+
+#theme:checked ~ * {
+  --bg: #333333; /* charcoal */
+  --text: #fffff0; /* ivory */
+  --button-bg: #03ffc0; /* electric green */
+  --button-interior: #333333; /* charcoal */
+}
+
+@media (prefers-color-scheme: dark) {
+  #theme:checked ~ * {
+    --bg: #fffff0; /* ivory */
+    --text: #333333; /* charcoal */
+    --button-bg: #03ffc0; /* electric green */
+    --button-interior: #333333; /* charcoal */
+  }
+}
+
+.scheme-wrapper {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+#theme {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 60px;
+  height: 30px;
+  border-radius: 30px;
+  background-color: white;
+  position: absolute;
+  top: 50px;
+  right: 50px;
+  transition: all 0.5s ease-in;
+  cursor: pointer;
+  z-index: 1;
+}
+
+#theme::before {
+  content: "";
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: var(--button-interior);
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  transform: translateY(-50%);
+  transition: all 0.5s ease-in;
+}
+
+#theme:checked {
+  background: var(--button-bg);
+}
+
+#theme:checked::before {
+  background: var(--button-interior);
+  left: 32px;
+}
+
+/* Body Styles */
 
 body {
   margin: 0;
@@ -8,7 +89,8 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background-color: #fffff0;
+  background-color: var(--bg);
+  margin: 0;
 }
 
 .container {

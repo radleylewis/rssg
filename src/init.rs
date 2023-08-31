@@ -152,7 +152,8 @@ pub fn init_project() -> Result<(), std::io::Error> {
             <!-- Add more fields here as needed -->
         </head>
         <body>
-            <div  class=\"container\">
+            <input id=\"theme\" type=\"checkbox\" />
+            <div  class=\"scheme-wrapper\">
             <header>
                 <nav class=\"navbar\">
                     <a class=\"navbar__left\" href=\"/\">
