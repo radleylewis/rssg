@@ -10,7 +10,7 @@ html {
 :root {
   --bg: #fffff0; /* ivory */
   --text: #333333; /* charcoal */
-  --button-bg: #9955bb; /* lilac */
+  --button-bg: #b5a642; /* gold */
   --button-interior: #333333; /* charcoal */
 }
 
@@ -34,7 +34,7 @@ html {
   #theme:checked ~ * {
     --bg: #fffff0; /* ivory */
     --text: #333333; /* charcoal */
-    --button-bg: #9955bb; /* lilac */
+    --button-bg: #b5a642; /* gold */
     --button-interior: #333333; /* charcoal */
   }
 }
@@ -138,6 +138,7 @@ body {
   color: var(--button-bg);
 }
 
+.navbar__link #active,
 .navbar__link a:active,
 .navbar__link a:focus {
   outline: none;
@@ -179,9 +180,10 @@ body {
   padding-bottom: 1rem;
   margin-left: auto;
   color: var(--button-bg);
+  font-size: 0.8rem;
 }
 
-@media (max-width: 50rem) {
+@media (max-width: 55rem) {
   .navbar {
     flex-direction: column;
   }

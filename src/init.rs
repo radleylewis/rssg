@@ -83,7 +83,7 @@ fn generate_navbar_list(navbar_items: String) -> String {
         .map(|item| item.trim())
         .map(|item| {
             format!(
-                "<li class=\"navbar__link\"><a href='/{}'>{}</a></li>",
+                "<li class=\"navbar__link\"><a href=\"/{}\">{}</a></li>",
                 item, item
             )
         })

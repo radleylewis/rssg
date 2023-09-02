@@ -59,6 +59,30 @@ fn read_all_files_and_dirs_recursive(
     Ok(())
 }
 
+fn add_active_id_to_navbar(html: &str, page_name: &str) -> String {
+    let search_string = format!(
+        "<a href=\"/{}\">{}</a>",
+        page_name.to_lowercase(),
+        page_name
+    );
+    println!("{}", search_string);
+    let id_string = "id=\"active\"";
+    if html.find(&search_string).is_some() {
+        println!("Found");
+        let modified_html = html.replace(
+            &search_string,
+            &format!(
+                "<a href=\"{}\" {}>{}</a>",
+                page_name.to_lowercase(),
+                id_string,
+                page_name
+            ),
+        );
+        return modified_html;
+    }
+    return html.to_string();
+}
+
 pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
     let dist_path = format!("dist");
     if fs::metadata(dist_path.clone()).is_ok() {
@@ -77,9 +101,14 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
 
     for page in pages {
         let template_path = format!("templates/template.html");
-        let template_content = fs::read_to_string(&template_path)?;
+        let og_template_content = fs::read_to_string(&template_path)?;
 
         let page_path = page.path();
+        let parent = page_path.parent().unwrap().to_string_lossy();
+        let current_page = parent.split("/").last().unwrap();
+
+        let template_content = add_active_id_to_navbar(&og_template_content, current_page);
+
         let filename_with_extension = page_path
             .file_name()
             .expect("File name not available")
