@@ -65,10 +65,8 @@ fn add_active_id_to_navbar(html: &str, page_name: &str) -> String {
         page_name.to_lowercase(),
         page_name
     );
-    println!("{}", search_string);
     let id_string = "id=\"active\"";
     if html.find(&search_string).is_some() {
-        println!("Found");
         let modified_html = html.replace(
             &search_string,
             &format!(
