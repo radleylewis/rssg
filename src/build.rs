@@ -70,7 +70,7 @@ fn add_active_id_to_navbar(html: &str, page_name: &str) -> String {
         let modified_html = html.replace(
             &search_string,
             &format!(
-                "<a href=\"{}\" {}>{}</a>",
+                "<a href=\"/{}\" {}>{}</a>",
                 page_name.to_lowercase(),
                 id_string,
                 page_name
