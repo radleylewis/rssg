@@ -180,7 +180,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
                     </header>
                     <main></main>
                     <footer class=\"footer\">
-                        <p>&copy; {author}. </p>
+                        <p>&copy; 2023 {author}. All Rights Reserved.</p>
                     </footer>
                 </div>
             </div>
@@ -190,9 +190,6 @@ pub fn init_project() -> Result<(), std::io::Error> {
 
     let html_path = Path::new(templates_directory).join("template.html");
     fs::write(&html_path, html_content)?;
-
-    let styles_path = Path::new(static_directory).join("styles.css");
-    fs::write(&styles_path, "")?;
 
     Ok(())
 }

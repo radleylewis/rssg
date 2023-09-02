@@ -2,6 +2,7 @@
 
 html {
   font-family: "Fira Code", "monospace", monospace, "Droid Sans Fallback";
+  overflow-y: scroll;
 }
 
 /* Toggle Theme Styles */
@@ -57,7 +58,7 @@ html {
   right: 20px;
   transition: all 0.5s ease-in;
   cursor: pointer;
-  z-index: 1;
+  z-index: 99;
 }
 
 #theme::before {
@@ -102,7 +103,6 @@ body {
   margin-right: auto;
   display: flex;
   justify-content: space-between;
-  opacity: 0.5;
   z-index: 1;
 }
 
@@ -134,20 +134,27 @@ body {
   margin-right: 7.5px;
 }
 
+.navbar__link a:hover {
+  color: var(--button-bg);
+}
+
+.navbar__link a:active,
+.navbar__link a:focus {
+  outline: none;
+  border-bottom: 2px solid var(--button-bg);
+}
+
 .container {
-  flex: 1;
   max-width: 50rem;
   margin-left: auto;
   margin-right: auto;
-  overflow-y: overlay;
   display: flex;
   min-height: 100vh;
   flex-direction: column;
 }
 
 .content {
-  margin-top: 80px;
-  top: 50;
+  margin-top: 150px;
   z-index: 0;
 }
 
@@ -174,21 +181,34 @@ body {
   color: var(--button-bg);
 }
 
-a {
-  text-decoration: none;
-  color: var(--text);
-  cursor: pointer;
-}
-
-a:hover {
-  color: var(--button-bg);
-}
-
-.navbar__link a:active {
-  border-bottom: 2px solid var(--button-bg);
-}
-
-.navbar__link:focus {
-  outline: none;
-  padding: 5px;
+@media (max-width: 50rem) {
+  .navbar {
+    flex-direction: column;
+  }
+  .navbar__right {
+    margin-top: 10px;
+    width: 100vw;
+    justify-content: space-between;
+  }
+  .navbar__left {
+    width: 50vw;
+    margin-left: 0.5rem;
+  }
+  .navbar__link {
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
+  }
+  .content {
+    margin-left: 1rem;
+    margin-right: 1rem;
+  }
+  .content::before {
+    height: 130px;
+  }
+  .footer {
+    margin-left: 1rem;
+    margin-right: 1rem;
+    overflow-wrap: break-word;
+    padding-bottom: 0;
+  }
 }
