@@ -11,6 +11,37 @@ fn convert_md_to_html(md_content: &str) -> String {
     return html_output;
 }
 
+fn copy_directory(src: &Path, dest: &Path) -> Result<(), std::io::Error> {
+    if !src.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Source is not a directory",
+        ));
+    }
+
+    if !dest.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Destination is not a directory",
+        ));
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        let file_name = path.file_name().unwrap();
+        let dest_path = dest.join(file_name);
+        if path.is_dir() {
+            fs::create_dir_all(&dest_path)?;
+            copy_directory(&path, &dest_path)?;
+        } else if path.is_file() {
+            fs::copy(&path, &dest_path)?;
+        }
+    }
+
+    Ok(())
+}
+
 fn read_all_files_and_dirs_recursive(
     dir: &Path,
     files: &mut Vec<DirEntry>,
@@ -34,6 +65,11 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         fs::remove_dir_all(dist_path.clone())?;
     }
     fs::create_dir_all(&dist_path)?;
+    fs::create_dir_all(format!("{}/static", dist_path))?;
+
+    let static_src = Path::new("./static");
+    let static_dist = Path::new("./dist/static");
+    copy_directory(static_src, static_dist)?;
 
     let pages_dir = format!("pages");
     let mut pages = Vec::new();
@@ -55,14 +91,15 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         let relative_path = page_path.strip_prefix(Path::new(&pages_dir))?;
         let relative_directory = relative_path.parent().unwrap();
         if let Some(extension) = page_path.extension() {
-            let content = fs::read_to_string(&page_path)?;
-            let html_content: String;
+            let file_contents = fs::read_to_string(&page_path)?;
+            let content: String;
             if extension == "md" {
-                html_content = convert_md_to_html(&content);
+                content = convert_md_to_html(&file_contents);
             } else {
-                html_content = content;
+                content = file_contents;
             }
-            let updated_template = template_content.replace("<main></main>", &html_content);
+            let updated_main = format!("<main><div class=\"content\">{}</div></main>", &content);
+            let updated_template = template_content.replace("<main></main>", &updated_main);
             let dist_path = format!("dist/{}", relative_directory.to_string_lossy());
             fs::create_dir_all(&dist_path)?;
             let dist_file_path = format!("{}/{}", dist_path, new_file_name);

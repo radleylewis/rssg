@@ -3,9 +3,18 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-const LOGO: &[u8] = include_bytes!("./assets/logo.png");
-const STYLES: &[u8] = include_bytes!("./assets/styles.css");
+const LOGO: &[u8] = include_bytes!("./static/logo.png");
+const STYLES: &[u8] = include_bytes!("./static/styles.css");
+
+fn get_timestamp() -> u64 {
+    let start = SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    return since_the_epoch.as_secs();
+}
 
 fn get_project_name() -> Result<String, std::io::Error> {
     let default_project_name: String = "my-project".to_string();
@@ -93,18 +102,18 @@ pub fn init_project() -> Result<(), std::io::Error> {
         ));
     }
 
-    let assets_directory = &format!("{project_name}/assets");
+    let static_directory = &format!("{project_name}/static");
     let templates_directory = &format!("{project_name}/templates");
     let pages_directory = &format!("{project_name}/pages");
 
     fs::create_dir_all(sanitise_string(&project_name))?;
-    fs::create_dir_all(assets_directory)?;
+    fs::create_dir_all(static_directory)?;
     fs::create_dir_all(templates_directory)?;
     fs::create_dir_all(pages_directory)?;
 
-    let logo_path = format!("{}/logo.png", assets_directory);
+    let logo_path = format!("{}/logo.png", static_directory);
     fs::write(logo_path, LOGO)?;
-    let styles_path = format!("{}/styles.css", assets_directory);
+    let styles_path = format!("{}/styles.css", static_directory);
     fs::write(styles_path, STYLES)?;
 
     let title: String = get_website_title()?;
@@ -129,6 +138,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
     }
 
     let navbar_list = generate_navbar_list(pages);
+    let timestamp = get_timestamp();
 
     let html_content = format!(
         "<!DOCTYPE html>
@@ -142,8 +152,8 @@ pub fn init_project() -> Result<(), std::io::Error> {
             <meta http-equiv=\"expires\" content=\"0\" />
             <meta http-equiv=\"expires\" content=\"Tue, 01 Jan 1980 1:00:00 GMT\" />
             <meta http-equiv=\"pragma\" content=\"no-cache\" />
-            <link rel=\"stylesheet\" href=\"./assets/styles.css\" />
-            <link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"./assets/logo.png\" />
+            <link rel=\"stylesheet\" href=\"/static/styles.css?v={timestamp}\" />
+            <link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/static/logo.png?v={timestamp}\" />
             <title>{title}</title>
             <meta name=\"description\" content=\"{description}\" />
             <meta name=\"author\" content=\"{author}\" />
@@ -160,7 +170,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
                                 <img
                                     class=\"navbar__logo\"
                                     title=\"rssg\"
-                                    src=\"./assets/logo.png\"
+                                    src=\"/static/logo.png\"
                                 />
                             </a>
                             <ul class=\"navbar__right\">
@@ -181,7 +191,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
     let html_path = Path::new(templates_directory).join("template.html");
     fs::write(&html_path, html_content)?;
 
-    let styles_path = Path::new(assets_directory).join("styles.css");
+    let styles_path = Path::new(static_directory).join("styles.css");
     fs::write(&styles_path, "")?;
 
     Ok(())
