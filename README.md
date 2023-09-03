@@ -1,4 +1,9 @@
+<div style="align-items:center">
+  
 <img src="https://github.com/radleylewis/rssg/assets/40852773/5bef91b6-10f3-425e-b3d7-52414faca447" width="250px" align="center">
+</div>
+
+
 
 
 A Static Site Generator built in Rust. 
