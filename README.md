@@ -1,18 +1,10 @@
 <div align="center">
  <img src="https://github.com/radleylewis/rssg/assets/40852773/5bef91b6-10f3-425e-b3d7-52414faca447" width="250px">
-</div>
-
-
-
-
-A Static Site Generator built in Rust. 
+ <p>A Static Site Generator built in Rust.</p>
+</div> 
 
 ## Introduction
-
-
-
-
-![preview](https://github.com/radleylewis/rssg/assets/40852773/181bee22-107a-4623-bc4c-b870071a8437)
+![output](https://github.com/radleylewis/rssg/assets/40852773/e4466739-6104-41bd-8e0f-0be2d056102c)
 
 
 Static Site Generator built with Rust
