@@ -10,10 +10,10 @@ const STYLES: &[u8] = include_bytes!("./static/styles.css");
 
 fn get_timestamp() -> u64 {
     let start = SystemTime::now();
-    let since_the_epoch = start
+    start
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    return since_the_epoch.as_secs();
+        .expect("Time went backwards")
+        .as_secs()
 }
 
 fn get_project_name() -> Result<String, std::io::Error> {
@@ -68,17 +68,16 @@ fn get_website_pages() -> Result<String, std::io::Error> {
 }
 
 fn sanitise_string(page_name: &str) -> String {
-    let sanitised_page_name = page_name
+    page_name
         .trim()
         .to_lowercase()
         .replace(" ", "_")
-        .to_string();
-    return sanitised_page_name;
+        .to_string()
 }
 
 fn generate_navbar_list(navbar_items: String) -> String {
     let navbar_items: Vec<&str> = navbar_items.split(',').collect();
-    return navbar_items
+    navbar_items
         .iter()
         .map(|item| item.trim())
         .map(|item| {
@@ -88,7 +87,7 @@ fn generate_navbar_list(navbar_items: String) -> String {
             )
         })
         .collect::<Vec<_>>()
-        .join("\n");
+        .join("\n")
 }
 
 pub fn init_project() -> Result<(), std::io::Error> {
@@ -192,4 +191,25 @@ pub fn init_project() -> Result<(), std::io::Error> {
     fs::write(&html_path, html_content)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*; // import everything from the parent module
+
+    #[test]
+    fn test_sanitise_string() {
+        assert_eq!(sanitise_string("My Page "), "my_page");
+        assert_eq!(sanitise_string("  Another Page"), "another_page");
+        assert_eq!(sanitise_string("Already_good"), "already_good");
+    }
+
+    #[test]
+    fn test_generate_navbar_list() {
+        let input = "Home, About, Contact";
+        let expected = "<li class=\"navbar__link\"><a href=\"/Home\">Home</a></li>\n\
+                        <li class=\"navbar__link\"><a href=\"/About\">About</a></li>\n\
+                        <li class=\"navbar__link\"><a href=\"/Contact\">Contact</a></li>";
+        assert_eq!(generate_navbar_list(input.to_string()), expected);
+    }
 }
