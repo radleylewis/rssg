@@ -1,11 +1,15 @@
 [package]
 name = "rssg"
-version = "0.1.0"
+version = "1.0.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pulldown-cmark = "0.8.0"
-clap = "3.0.0"  
-dialoguer = "0.8.0"  
+pulldown-cmark = "0.13"
+clap = "4"
+dialoguer = "0.12"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+tiny_http = "0.12"
+syntect = "5"

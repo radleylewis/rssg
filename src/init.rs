@@ -1,70 +1,27 @@
+use crate::utils::html_escape;
 use dialoguer::Input;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const LOGO: &[u8] = include_bytes!("./static/logo.png");
 const STYLES: &[u8] = include_bytes!("./static/styles.css");
 
-fn get_timestamp() -> u64 {
-    let start = SystemTime::now();
-    start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs()
-}
-
 fn get_project_name() -> Result<String, std::io::Error> {
-    let default_project_name: String = "my-project".to_string();
     let title: String = Input::new()
         .with_prompt("What is the name of your new project?")
-        .default(default_project_name)
+        .default("my-project".to_string())
         .interact_text()?;
-
-    let sanitised_project_name = sanitise_string(&title);
-    Ok(sanitised_project_name)
+    Ok(sanitise_string(&title))
 }
 
-fn get_website_title() -> Result<String, std::io::Error> {
-    let title: String = Input::new()
-        .with_prompt("Enter the title of your new website")
-        .interact_text()?;
-
-    Ok(title)
+fn prompt(label: &str) -> Result<String, std::io::Error> {
+    Ok(Input::new().with_prompt(label).interact_text()?)
 }
 
-fn get_website_author() -> Result<String, std::io::Error> {
-    let author: String = Input::new()
-        .with_prompt("Enter the author of your new website")
-        .interact_text()?;
-
-    Ok(author)
-}
-
-fn get_website_description() -> Result<String, std::io::Error> {
-    let description: String = Input::new()
-        .with_prompt("Enter the description of your new website")
-        .interact_text()?;
-
-    Ok(description)
-}
-
-fn get_website_keywords() -> Result<String, std::io::Error> {
-    let keywords: String = Input::new()
-        .with_prompt("Enter keywords (comma-separated)")
-        .interact_text()?;
-
-    Ok(keywords)
-}
-
-fn get_website_pages() -> Result<String, std::io::Error> {
-    let navbar_items: String = Input::new()
-        .with_prompt("Enter navbar items (comma-separated)")
-        .interact_text()?;
-
-    Ok(navbar_items)
+fn toml_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn sanitise_string(page_name: &str) -> String {
@@ -75,72 +32,103 @@ fn sanitise_string(page_name: &str) -> String {
         .to_string()
 }
 
-fn generate_navbar_list(navbar_items: String) -> String {
-    let navbar_items: Vec<&str> = navbar_items.split(',').collect();
+fn generate_navbar_list(navbar_items: &str) -> String {
     navbar_items
-        .iter()
+        .split(',')
         .map(|item| item.trim())
         .map(|item| {
             format!(
                 "<li class=\"navbar__link\"><a href=\"/{}\">{}</a></li>",
-                item, item
+                sanitise_string(item),
+                item
             )
         })
         .collect::<Vec<_>>()
         .join("\n")
 }
 
+pub fn new_page() -> Result<(), std::io::Error> {
+    let filename = sanitise_string(&prompt("Filename (without extension)")?);
+    let ext: String = Input::new()
+        .with_prompt("File type")
+        .default("md".to_string())
+        .interact_text()?;
+    let title = prompt("Title")?;
+    let description = prompt("Description")?;
+    let keywords = prompt("Keywords (comma-separated)")?;
+
+    let ext = if ext == "html" { "html" } else { "md" };
+    let path = format!("{filename}.{ext}");
+
+    if fs::metadata(&path).is_ok() {
+        println!("[WARNING] '{path}' already exists");
+        return Err(std::io::Error::other("Operation canceled."));
+    }
+
+    let content = match ext {
+        "html" => format!(
+            "<!--\ntitle: {title}\ndescription: {description}\nkeywords: {keywords}\n-->\n\n<h1>{}</h1>\n",
+            html_escape(&title)
+        ),
+        _ => format!(
+            "---\ntitle: {title}\ndescription: {description}\nkeywords: {keywords}\n---\n\n# {title}\n"
+        ),
+    };
+
+    fs::write(&path, content)?;
+    println!("Created {path}");
+    Ok(())
+}
+
 pub fn init_project() -> Result<(), std::io::Error> {
-    let project_name: String = get_project_name()?;
-    let project_dir = format!("./{}", sanitise_string(&project_name));
+    let project_name = get_project_name()?;
+    let project_dir = format!("./{}", project_name);
     if fs::metadata(&project_dir).is_ok() {
         println!("[WARNING] directory '{project_name}' already exists");
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Operation canceled.",
-        ));
+        return Err(std::io::Error::other("Operation canceled."));
     }
 
-    let static_directory = &format!("{project_name}/static");
-    let templates_directory = &format!("{project_name}/templates");
-    let pages_directory = &format!("{project_name}/pages");
+    let static_dir = format!("{project_name}/static");
+    let templates_dir = format!("{project_name}/templates");
+    let pages_dir = format!("{project_name}/pages");
 
-    fs::create_dir_all(sanitise_string(&project_name))?;
-    fs::create_dir_all(static_directory)?;
-    fs::create_dir_all(templates_directory)?;
-    fs::create_dir_all(pages_directory)?;
+    fs::create_dir_all(&project_name)?;
+    fs::create_dir_all(&static_dir)?;
+    fs::create_dir_all(&templates_dir)?;
+    fs::create_dir_all(&pages_dir)?;
 
-    let logo_path = format!("{}/logo.png", static_directory);
-    fs::write(logo_path, LOGO)?;
-    let styles_path = format!("{}/styles.css", static_directory);
-    fs::write(styles_path, STYLES)?;
+    fs::write(format!("{static_dir}/logo.png"), LOGO)?;
+    fs::write(format!("{static_dir}/styles.css"), STYLES)?;
 
-    let title: String = get_website_title()?;
-    let author: String = get_website_author()?;
-    let description: String = get_website_description()?;
-    let keywords: String = get_website_keywords()?;
-    let pages: String = get_website_pages()?;
+    let title = prompt("Enter the title of your website")?;
+    let base_url = prompt("Enter the base URL of your website (e.g. https://example.com)")?;
+    let author = prompt("Enter the author name")?;
+    let description = prompt("Enter the site description")?;
+    let keywords = prompt("Enter keywords (comma-separated)")?;
+    let pages = prompt("Enter navbar items (comma-separated)")?;
 
-    let home_page = format!("{}/index.md", pages_directory);
-    let home_page_content = "# Add your home page content here";
-    let mut home_page_file = File::create(home_page)?;
-    home_page_file.write_all(home_page_content.as_bytes())?;
+    let config = format!(
+        "title = \"{}\"\nbase_url = \"{}\"\nauthor = \"{}\"\ndescription = \"{}\"\nkeywords = \"{}\"\n",
+        toml_escape(&title),
+        toml_escape(&base_url),
+        toml_escape(&author),
+        toml_escape(&description),
+        toml_escape(&keywords),
+    );
+    fs::write(format!("{project_name}/rssg.toml"), config)?;
 
-    // create the blank markdown pages
+    let mut home = File::create(format!("{pages_dir}/index.md"))?;
+    home.write_all(b"# Add your home page content here")?;
+
     for page in pages.split(',') {
-        let page_directory = format!("{}/pages/{}", project_name, sanitise_string(page));
-        fs::create_dir_all(page_directory.clone())?;
-        let page_path = format!("{}/index.md", page_directory);
-        let page_content = "# Add your content here";
-        let mut page_file = File::create(page_path)?;
-        page_file.write_all(page_content.as_bytes())?;
+        let page_dir = format!("{project_name}/pages/{}", sanitise_string(page));
+        fs::create_dir_all(&page_dir)?;
+        let mut f = File::create(format!("{page_dir}/index.md"))?;
+        f.write_all(b"# Add your content here")?;
     }
 
-    let navbar_list = generate_navbar_list(pages);
-    let timestamp = get_timestamp();
-
-    let html_content = format!(
-        "<!DOCTYPE html>
+    let navbar_list = generate_navbar_list(&pages);
+    let template = "<!DOCTYPE html>
         <html lang=\"en\">
         <head>
             <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\" />
@@ -151,13 +139,20 @@ pub fn init_project() -> Result<(), std::io::Error> {
             <meta http-equiv=\"expires\" content=\"0\" />
             <meta http-equiv=\"expires\" content=\"Tue, 01 Jan 1980 1:00:00 GMT\" />
             <meta http-equiv=\"pragma\" content=\"no-cache\" />
-            <link rel=\"stylesheet\" href=\"/static/styles.css?v={timestamp}\" />
-            <link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/static/logo.png?v={timestamp}\" />
-            <title>{title}</title>
-            <meta name=\"description\" content=\"{description}\" />
-            <meta name=\"author\" content=\"{author}\" />
-            <meta name=\"keywords\" content=\"{keywords}\" />
-            <!-- Add more fields here as needed -->
+            <link rel=\"stylesheet\" href=\"/static/styles.css?v={{refresh_cache}}\" />
+            <link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/static/logo.png?v={{refresh_cache}}\" />
+            <title>{{title}}</title>
+            <meta name=\"description\" content=\"{{description}}\" />
+            <meta name=\"author\" content=\"{{author}}\" />
+            <meta name=\"keywords\" content=\"{{keywords}}\" />
+            <meta property=\"og:title\" content=\"{{title}}\" />
+            <meta property=\"og:description\" content=\"{{description}}\" />
+            <meta property=\"og:url\" content=\"{{page_url}}\" />
+            <meta property=\"og:type\" content=\"website\" />
+            <meta name=\"twitter:card\" content=\"summary\" />
+            <meta name=\"twitter:title\" content=\"{{title}}\" />
+            <meta name=\"twitter:description\" content=\"{{description}}\" />
+            <link rel=\"canonical\" href=\"{{page_url}}\" />
         </head>
         <body>
             <input id=\"theme\" type=\"checkbox\" />
@@ -173,29 +168,28 @@ pub fn init_project() -> Result<(), std::io::Error> {
                                 />
                             </a>
                             <ul class=\"navbar__right\">
-                                {navbar_list}
+                                {{navbar_list}}
                             </ul>
                         </nav>
                     </header>
                     <main></main>
                     <footer class=\"footer\">
-                        <p>&copy; 2023 {author}. All Rights Reserved.</p>
+                        <p>&copy; {{year}} {{author}}. All Rights Reserved.</p>
                     </footer>
                 </div>
             </div>
         </body>
-        </html>",
-    );
+        </html>"
+        .replace("{{navbar_list}}", &navbar_list);
 
-    let html_path = Path::new(templates_directory).join("template.html");
-    fs::write(&html_path, html_content)?;
+    fs::write(Path::new(&templates_dir).join("template.html"), template)?;
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*; // import everything from the parent module
+    use super::*;
 
     #[test]
     fn test_sanitise_string() {
@@ -207,9 +201,9 @@ mod tests {
     #[test]
     fn test_generate_navbar_list() {
         let input = "Home, About, Contact";
-        let expected = "<li class=\"navbar__link\"><a href=\"/Home\">Home</a></li>\n\
-                        <li class=\"navbar__link\"><a href=\"/About\">About</a></li>\n\
-                        <li class=\"navbar__link\"><a href=\"/Contact\">Contact</a></li>";
-        assert_eq!(generate_navbar_list(input.to_string()), expected);
+        let expected = "<li class=\"navbar__link\"><a href=\"/home\">Home</a></li>\n\
+                        <li class=\"navbar__link\"><a href=\"/about\">About</a></li>\n\
+                        <li class=\"navbar__link\"><a href=\"/contact\">Contact</a></li>";
+        assert_eq!(generate_navbar_list(input), expected);
     }
 }

@@ -1,0 +1,5 @@
+# Test if user input can break out of TOML strings
+title = "test" 
+# If user input was: value"
+# Breaking TOML value" # evil config
+# Would become: title = "value"" # evil config"
