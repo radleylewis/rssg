@@ -21,6 +21,9 @@ pub fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     let server = Server::http(&addr).map_err(|e| format!("Failed to start server: {e}"))?;
     println!("Serving at http://localhost:{port} — press Ctrl+C to stop");
 
+    if !Path::new("dist").is_dir() {
+        return Err("No dist/ directory found — run 'rssg build' first.".into());
+    }
     let dist_root = Path::new("dist").canonicalize()?;
 
     for request in server.incoming_requests() {

@@ -8,12 +8,25 @@ use std::path::Path;
 const LOGO: &[u8] = include_bytes!("./static/logo.png");
 const STYLES: &[u8] = include_bytes!("./static/styles.css");
 
-fn get_project_name() -> Result<String, std::io::Error> {
-    let title: String = Input::new()
-        .with_prompt("What is the name of your new project?")
-        .default("my-project".to_string())
+fn get_project_name() -> Result<Option<String>, std::io::Error> {
+    let current_dir = std::env::current_dir()?
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("project")
+        .to_string();
+
+    let name: String = Input::new()
+        .with_prompt(format!(
+            "Project name (leave blank to initialise in the current directory '{current_dir}')"
+        ))
+        .allow_empty(true)
         .interact_text()?;
-    Ok(sanitise_string(&title))
+
+    if name.trim().is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(sanitise_string(&name)))
+    }
 }
 
 fn prompt(label: &str) -> Result<String, std::io::Error> {
@@ -81,18 +94,22 @@ pub fn new_page() -> Result<(), std::io::Error> {
 }
 
 pub fn init_project() -> Result<(), std::io::Error> {
-    let project_name = get_project_name()?;
-    let project_dir = format!("./{}", project_name);
-    if fs::metadata(&project_dir).is_ok() {
-        println!("[WARNING] directory '{project_name}' already exists");
-        return Err(std::io::Error::other("Operation canceled."));
-    }
+    let base = match get_project_name()? {
+        None => ".".to_string(),
+        Some(name) => {
+            if fs::metadata(&name).is_ok() {
+                println!("[WARNING] directory '{name}' already exists");
+                return Err(std::io::Error::other("Operation canceled."));
+            }
+            fs::create_dir_all(&name)?;
+            name
+        }
+    };
 
-    let static_dir = format!("{project_name}/static");
-    let templates_dir = format!("{project_name}/templates");
-    let pages_dir = format!("{project_name}/pages");
+    let static_dir = format!("{base}/static");
+    let templates_dir = format!("{base}/templates");
+    let pages_dir = format!("{base}/pages");
 
-    fs::create_dir_all(&project_name)?;
     fs::create_dir_all(&static_dir)?;
     fs::create_dir_all(&templates_dir)?;
     fs::create_dir_all(&pages_dir)?;
@@ -115,13 +132,13 @@ pub fn init_project() -> Result<(), std::io::Error> {
         toml_escape(&description),
         toml_escape(&keywords),
     );
-    fs::write(format!("{project_name}/rssg.toml"), config)?;
+    fs::write(format!("{base}/rssg.toml"), config)?;
 
     let mut home = File::create(format!("{pages_dir}/index.md"))?;
     home.write_all(b"# Add your home page content here")?;
 
     for page in pages.split(',') {
-        let page_dir = format!("{project_name}/pages/{}", sanitise_string(page));
+        let page_dir = format!("{base}/pages/{}", sanitise_string(page));
         fs::create_dir_all(&page_dir)?;
         let mut f = File::create(format!("{page_dir}/index.md"))?;
         f.write_all(b"# Add your content here")?;
