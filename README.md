@@ -46,12 +46,12 @@ You will be prompted for a filename, file type (`md` or `html`), title, descript
 **Markdown front matter:**
 ```markdown
 ---
-title: My Article
-description: A short summary
-tags: rust, web
-date: 2024-01-15
-location: London, UK
-draft: false
+title: Why the Euro makes no sense
+description: An economic takedown of the most pantsuit wearing currency
+tags: economics, money
+date: 2027-01-15
+location: Beijing, China
+draft: true
 ---
 
 # My Article
@@ -60,12 +60,12 @@ draft: false
 **HTML front matter:**
 ```html
 <!--
-title: My Page
-description: A short summary
-tags: rust, web
-date: 2024-01-15
-location: London, UK
-draft: false
+title: Why the Euro makes no sense
+description: An economic takedown of the most pantsuit wearing currency
+tags: economics, money
+date: 2027-01-15
+location: Beijing, China
+draft: true
 -->
 
 <h1>My Page</h1>
@@ -79,7 +79,9 @@ draft: false
 | `description` | Page description (overrides site default in meta and RSS) |
 | `tags` | Comma-separated tags (used for filtering, SEO keywords, and tag pages) |
 | `date` | Publication date in `YYYY-MM-DD` format (shown above content, used to sort posts, included in RSS) |
+| `last_edited` | Last edited date in `YYYY-MM-DD` format (shown in post header if different from `date`, used as sitemap `<lastmod>`) |
 | `location` | Where the post was written (displayed in the post header) |
+| `language` | BCP 47 language code for the page (sets `lang` on `<html>`, defaults to `en`) |
 | `draft` | Set to `true` to exclude the page from build output |
 
 > **Tip:** For long descriptions, edit `rssg.toml` directly rather than typing in the prompt.
@@ -110,7 +112,7 @@ title = "My Site"
 base_url = "https://example.com"
 author = "Your Name"
 description = "Site description"
-keywords = "keyword1, keyword2"
+posts_per_page = 10
 ```
 
 ## Post lists

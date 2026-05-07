@@ -32,8 +32,10 @@ struct PageMeta {
     title: Option<String>,
     description: Option<String>,
     date: Option<String>,
+    last_edited: Option<String>,
     tags: Vec<String>,
     location: Option<String>,
+    language: Option<String>,
     draft: bool,
 }
 
@@ -168,7 +170,9 @@ fn parse_meta_lines(text: &str) -> PageMeta {
                 "title" => meta.title = Some(value.to_string()),
                 "description" => meta.description = Some(value.to_string()),
                 "date" => meta.date = Some(value.to_string()),
+                "last_edited" => meta.last_edited = Some(value.to_string()),
                 "location" => meta.location = Some(value.to_string()),
+                "language" => meta.language = Some(value.to_string()),
                 "draft" => meta.draft = value.eq_ignore_ascii_case("true"),
                 "tags" => {
                     meta.tags = value
@@ -292,6 +296,25 @@ fn slugify(s: &str) -> String {
     s.trim().to_lowercase().replace(' ', "-")
 }
 
+fn format_rfc822(date: &str) -> String {
+    const DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let parts: Vec<&str> = date.split('-').collect();
+    if parts.len() != 3 { return date.to_string(); }
+    let Ok(y) = parts[0].parse::<i32>() else { return date.to_string() };
+    let Ok(m) = parts[1].parse::<u32>() else { return date.to_string() };
+    let Ok(d) = parts[2].parse::<u32>() else { return date.to_string() };
+    if m == 0 || m > 12 || d == 0 || d > 31 { return date.to_string(); }
+    // Tomohiko Sakamoto's algorithm for day-of-week
+    let t: [i32; 12] = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    let yr = if m < 3 { y - 1 } else { y };
+    let dow = ((yr + yr/4 - yr/100 + yr/400 + t[(m-1) as usize] + d as i32).rem_euclid(7)) as usize;
+    format!("{}, {:02} {} {} 00:00:00 +0000", DAYS[dow], d, MONTHS[(m-1) as usize], y)
+}
+
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
@@ -315,7 +338,7 @@ fn generate_tag_nav(all_tags: &[String], active_tag: Option<&str>, section_url: 
             "tag-filter__btn"
         };
         html.push_str(&format!(
-            "<a href=\"/tags/{slug}/\" class=\"{class}\">{tag}</a>"
+            "<a href=\"/tags/{slug}/\" class=\"{class}\">{}</a>", html_escape(tag)
         ));
     }
     format!("<nav class=\"tag-filters\">{html}</nav>")
@@ -338,7 +361,7 @@ fn generate_post_list(pages: &[&PageInfo]) -> String {
     let items: String = pages
         .iter()
         .map(|p| {
-            let title = p.meta.title.as_deref().unwrap_or(&p.out_filename);
+            let title = html_escape(p.meta.title.as_deref().unwrap_or(&p.out_filename));
             let date = p
                 .meta
                 .date
@@ -349,7 +372,7 @@ fn generate_post_list(pages: &[&PageInfo]) -> String {
                 .meta
                 .location
                 .as_deref()
-                .map(|l| format!("<span class=\"post-list__location\">{l}</span>"))
+                .map(|l| format!("<span class=\"post-list__location\">{}</span>", html_escape(l)))
                 .unwrap_or_default();
             let tag_badges = if p.meta.tags.is_empty() {
                 String::new()
@@ -358,7 +381,7 @@ fn generate_post_list(pages: &[&PageInfo]) -> String {
                     .meta
                     .tags
                     .iter()
-                    .map(|t| format!("<span class=\"post-list__tag\">{t}</span>"))
+                    .map(|t| format!("<span class=\"post-list__tag\">{}</span>", html_escape(t)))
                     .collect();
                 format!("<div class=\"post-list__tags\">{badges}</div>")
             };
@@ -396,11 +419,17 @@ fn generate_pagination_nav(current: usize, total: usize, section_url: &str) -> S
     format!("<nav class=\"pagination\">{nums}</nav>")
 }
 
-fn generate_sitemap(base_url: &str, urls: &[String]) -> String {
+fn generate_sitemap(base_url: &str, urls: &[(String, Option<String>)]) -> String {
     let base = xml_escape(base_url.trim().trim_end_matches('/'));
     let entries = urls
         .iter()
-        .map(|url| format!("<url><loc>{base}{}</loc></url>", xml_escape(url)))
+        .map(|(url, date)| {
+            let lastmod = date
+                .as_deref()
+                .map(|d| format!("<lastmod>{d}</lastmod>"))
+                .unwrap_or_default();
+            format!("<url><loc>{base}{}</loc>{lastmod}</url>", xml_escape(url))
+        })
         .collect::<Vec<_>>()
         .join("\n");
     format!(
@@ -417,18 +446,24 @@ fn generate_rss(config: &SiteConfig, pages: &[PageInfo]) -> String {
             let title = xml_escape(p.meta.title.as_deref().unwrap_or(&config.title));
             let url = xml_escape(&p.full_url);
             let desc = xml_escape(p.meta.description.as_deref().unwrap_or(&config.description));
-            let date = p.meta.date.as_deref().unwrap_or("");
+            let date = p.meta.date.as_deref().map(format_rfc822).unwrap_or_default();
             format!(
-                "<item><title>{title}</title><link>{url}</link><description>{desc}</description><pubDate>{date}</pubDate><guid>{url}</guid></item>"
+                "<item><title>{title}</title><link>{url}</link><description>{desc}</description><pubDate>{date}</pubDate><guid isPermaLink=\"true\">{url}</guid></item>"
             )
         })
         .collect::<Vec<_>>()
         .join("\n");
 
+    let last_build = pages
+        .iter()
+        .find_map(|p| p.meta.date.as_deref())
+        .map(format_rfc822)
+        .unwrap_or_default();
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
         <rss version=\"2.0\"><channel>\
         <title>{}</title><link>{base}</link><description>{}</description>\
+        <language>en</language><lastBuildDate>{last_build}</lastBuildDate>\
         {items}\
         </channel></rss>",
         xml_escape(&config.title),
@@ -450,12 +485,14 @@ fn render_page(
     full_url: &str,
     current_page_name: &str,
     content: &str,
+    lang: &str,
 ) -> String {
     let rendered = base_template
         .replace("{{title}}", title)
         .replace("{{description}}", description)
         .replace("{{keywords}}", keywords)
-        .replace("{{page_url}}", full_url);
+        .replace("{{page_url}}", full_url)
+        .replace("{{lang}}", lang);
     let rendered = add_active_id_to_navbar(&rendered, current_page_name);
     rendered.replace(
         "<main></main>",
@@ -484,7 +521,9 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         fs::remove_dir_all("dist")?;
     }
     fs::create_dir_all("dist/static")?;
-    copy_directory(Path::new("./static"), Path::new("./dist/static"))?;
+    if Path::new("static").is_dir() {
+        copy_directory(Path::new("./static"), Path::new("./dist/static"))?;
+    }
 
     let ss = two_face::syntax::extra_newlines();
     let ts = ThemeSet::load_defaults();
@@ -536,9 +575,9 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                 format!("/{}/", path_to_url(&relative_dir))
             }
         } else if relative_dir.as_os_str().is_empty() {
-            format!("/{out_filename}")
+            format!("/{stem}/")
         } else {
-            format!("/{}/{out_filename}", path_to_url(&relative_dir))
+            format!("/{}/{stem}/", path_to_url(&relative_dir))
         };
 
         let full_url = format!("{base}{page_url}");
@@ -589,7 +628,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // --- Pass 2: render pages ---
-    let mut urls: Vec<String> = Vec::new();
+    let mut urls: Vec<(String, Option<String>)> = Vec::new();
 
     for i in 0..pages.len() {
         let title = html_escape(pages[i].meta.title.as_deref().unwrap_or(&config.title));
@@ -616,8 +655,17 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             let date_html = pages[i].meta.date.as_deref().map(|d| {
                 format!("<time class=\"post-date\" datetime=\"{d}\">{}</time>", format_date(d))
             }).unwrap_or_default();
+            let edited_html = pages[i].meta.last_edited.as_deref()
+                .filter(|&e| Some(e) != pages[i].meta.date.as_deref())
+                .map(|e| format!("<time class=\"post-updated\" datetime=\"{e}\">Updated: {}</time>", format_date(e)))
+                .unwrap_or_default();
+            let dates_html = if edited_html.is_empty() {
+                date_html
+            } else {
+                format!("<div class=\"post-dates\">{date_html}{edited_html}</div>")
+            };
             let read_time = format!("<span class=\"post-read-time\">{} min read</span>", estimate_read_time(&pages[i].body));
-            content = format!("<div class=\"post-header\">{date_html}{read_time}{location}</div>\n{content}");
+            content = format!("<div class=\"post-header\">{dates_html}{read_time}{location}</div>\n{content}");
         }
 
         let current_page_name = pages[i]
@@ -625,6 +673,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("");
+        let lang = pages[i].meta.language.as_deref().unwrap_or("en");
 
         if pages[i].out_filename == "index.html" {
             let siblings: Vec<&PageInfo> = dir_index
@@ -675,9 +724,10 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                     &pages[i].full_url,
                     current_page_name,
                     &page1_content,
+                    lang,
                 ),
             )?;
-            urls.push(pages[i].page_url.clone());
+            urls.push((pages[i].page_url.clone(), None));
 
             for page_num in 2..=total_pages {
                 let chunk: Vec<&PageInfo> = siblings
@@ -708,15 +758,20 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                         &full_url,
                         current_page_name,
                         &page_content,
+                        lang,
                     ),
                 )?;
-                urls.push(page_url);
             }
         } else {
-            let out_dir = format!("dist/{}", path_to_url(&pages[i].relative_dir));
+            let stem = pages[i].out_filename.trim_end_matches(".html");
+            let out_dir = if pages[i].relative_dir.as_os_str().is_empty() {
+                format!("dist/{stem}")
+            } else {
+                format!("dist/{}/{stem}", path_to_url(&pages[i].relative_dir))
+            };
             fs::create_dir_all(&out_dir)?;
             fs::write(
-                format!("{out_dir}/{}", pages[i].out_filename),
+                format!("{out_dir}/index.html"),
                 render_page(
                     &base_template,
                     &title,
@@ -725,9 +780,11 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                     &pages[i].full_url,
                     current_page_name,
                     &content,
+                    lang,
                 ),
             )?;
-            urls.push(pages[i].page_url.clone());
+            let lastmod = pages[i].meta.last_edited.clone().or_else(|| pages[i].meta.date.clone());
+            urls.push((pages[i].page_url.clone(), lastmod));
         }
     }
 
@@ -790,25 +847,36 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                     &page_full_url,
                     "",
                     &content,
+                    "en",
                 ),
             )?;
-            urls.push(page_tag_url);
+            if page_num == 1 {
+                urls.push((page_tag_url, None));
+            }
         }
     }
 
     fs::write("dist/sitemap.xml", generate_sitemap(&config.base_url, &urls))?;
     fs::write("dist/feed.xml", generate_rss(&config, &pages))?;
 
-    let not_found = base_template
-        .replace("{{title}}", "404 - Page Not Found")
-        .replace("{{description}}", "The page you are looking for does not exist.")
-        .replace("{{keywords}}", "")
-        .replace("{{page_url}}", &format!("{base}/404.html"))
-        .replace(
-            "<main></main>",
-            "<main><div class=\"content\"><h1>404</h1><p>Page not found.</p></div></main>",
-        );
-    fs::write("dist/404.html", not_found)?;
+    let not_found_template = base_template
+        .lines()
+        .filter(|l| !l.contains("og:url") && !l.contains("canonical"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    fs::write(
+        "dist/404.html",
+        render_page(
+            &not_found_template,
+            "404 - Page Not Found",
+            "The page you are looking for does not exist.",
+            "",
+            "",
+            "",
+            "<h1>404</h1><p>Page not found.</p>",
+            "en",
+        ),
+    )?;
 
     fs::write(
         "dist/robots.txt",

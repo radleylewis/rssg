@@ -85,13 +85,19 @@ pub fn new_page() -> Result<(), std::io::Error> {
         format!("date: {}\n", date.trim())
     };
 
+    let last_edited_line = if date.trim().is_empty() {
+        String::new()
+    } else {
+        format!("last_edited: {}\n", date.trim())
+    };
+
     let content = match ext {
         "html" => format!(
-            "<!--\ntitle: {title}\ndescription: {description}\ntags: {tags}\n{date_line}-->\n\n<h1>{}</h1>\n",
+            "<!--\ntitle: {title}\ndescription: {description}\ntags: {tags}\n{date_line}{last_edited_line}language: en\n-->\n\n<h1>{}</h1>\n",
             html_escape(&title)
         ),
         _ => format!(
-            "---\ntitle: {title}\ndescription: {description}\ntags: {tags}\n{date_line}---\n\n# {title}\n"
+            "---\ntitle: {title}\ndescription: {description}\ntags: {tags}\n{date_line}{last_edited_line}language: en\n---\n\n# {title}\n"
         ),
     };
 
@@ -151,7 +157,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
 
     let navbar_list = generate_navbar_list(&pages);
     let template = "<!DOCTYPE html>
-        <html lang=\"en\">
+        <html lang=\"{{lang}}\">
         <head>
             <meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\" />
             <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />

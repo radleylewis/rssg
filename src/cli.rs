@@ -5,7 +5,7 @@ use clap::{Arg, Command};
 
 pub fn parse_arguments() -> Result<(), String> {
     let matches = Command::new("rssg")
-        .version("1.0")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Radley E. Sidwell-Lewis")
         .about("A static site generator written in Rust")
         .subcommand(Command::new("init").about("Initialise a new project"))
@@ -26,25 +26,16 @@ pub fn parse_arguments() -> Result<(), String> {
 
     match matches.subcommand() {
         Some(("init", _)) => {
-            if init::init_project().is_ok() {
-                println!("Project initialised successfully.");
-            } else {
-                return Err("Failed to initialise project.".to_string());
-            }
+            init::init_project().map_err(|e| e.to_string())?;
+            println!("Project initialised successfully.");
         }
         Some(("build", _)) => {
-            if build::build_project().is_ok() {
-                println!("Project built successfully.");
-            } else {
-                return Err("Failed to build project.".to_string());
-            }
+            build::build_project().map_err(|e| e.to_string())?;
+            println!("Project built successfully.");
         }
         Some(("new", _)) => {
-            if init::new_page().is_ok() {
-                println!("Page created successfully.");
-            } else {
-                return Err("Failed to create page.".to_string());
-            }
+            init::new_page().map_err(|e| e.to_string())?;
+            println!("Page created successfully.");
         }
         Some(("serve", sub)) => {
             let port: u16 = sub
