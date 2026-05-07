@@ -203,6 +203,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
                     </header>
                     <main></main>
                     <footer class=\"footer\">
+                        <a class=\"footer__rss\" href=\"{{base_url}}/feed.xml\">RSS</a>
                         <p>&copy; {{year}} {{author}}. All Rights Reserved.</p>
                     </footer>
                 </div>

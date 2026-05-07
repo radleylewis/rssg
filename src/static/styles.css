@@ -137,9 +137,21 @@ body {
   margin-top: auto;
   padding-top: 1rem;
   padding-bottom: 1rem;
-  margin-left: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   color: var(--button-bg);
   font-size: 0.8rem;
+}
+
+.footer__rss {
+  text-decoration: none;
+  color: var(--button-bg);
+  border-bottom: 1px solid transparent;
+}
+
+.footer__rss:hover {
+  border-bottom-color: var(--button-bg);
 }
 
 /* =========================================================
@@ -397,6 +409,33 @@ body {
   border-color: var(--button-bg);
   background: var(--button-bg);
   color: var(--bg);
+}
+
+/* =========================================================
+   Content images
+========================================================= */
+
+.content img:not([class]) {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 1rem 0;
+}
+
+/* =========================================================
+   Blockquotes
+========================================================= */
+
+blockquote {
+  margin: 1.5rem 0;
+  padding: 0.75rem 1.25rem;
+  border-left: 3px solid var(--button-bg);
+  font-style: italic;
+  opacity: 0.85;
+}
+
+blockquote p {
+  margin: 0;
 }
 
 /* =========================================================
