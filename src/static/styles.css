@@ -1,41 +1,50 @@
-/* Font Styles */
-
 html {
   font-family: "Fira Code", "monospace", monospace, "Droid Sans Fallback";
   overflow-y: scroll;
 }
 
-/* Toggle Theme Styles */
+img {
+  max-width: 100%;
+  align-self: center;
+}
+
+p {
+  line-height: 1.5;
+}
+
+/* =========================================================
+   Theme Variables
+========================================================= */
 
 :root {
-  --bg: #fffff0; /* ivory */
-  --text: #333333; /* charcoal */
-  --button-bg: #b5a642; /* gold */
-  --button-interior: #333333; /* charcoal */
+  --bg: #fffff0;
+  --text: #333333;
+  --button-bg: #b5a642;
+  --button-interior: #333333;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #5a5a5a;
-    --text: #fffff0; /* ivory */
-    --button-bg: #03ffc0; /* electric green */
-    --button-interior: #333333; /* charcoal */
+    --bg: #292a2d;
+    --text: #fffff0;
+    --button-bg: #03ffc0;
+    --button-interior: #333333;
   }
 }
 
 #theme:checked ~ * {
-  --bg: #5a5a5a; /* charcoal */
-  --text: #fffff0; /* ivory */
-  --button-bg: #03ffc0; /* electric green */
-  --button-interior: #333333; /* charcoal */
+  --bg: #292a2d;
+  --text: #fffff0;
+  --button-bg: #03ffc0;
+  --button-interior: #333333;
 }
 
 @media (prefers-color-scheme: dark) {
   #theme:checked ~ * {
-    --bg: #fffff0; /* ivory */
-    --text: #333333; /* charcoal */
-    --button-bg: #b5a642; /* gold */
-    --button-interior: #333333; /* charcoal */
+    --bg: #fffff0;
+    --text: #333333;
+    --button-bg: #b5a642;
+    --button-interior: #333333;
   }
 }
 
@@ -44,6 +53,10 @@ html {
   background: var(--bg);
   color: var(--text);
 }
+
+/* =========================================================
+   Theme Toggle
+========================================================= */
 
 #theme {
   appearance: none;
@@ -83,7 +96,9 @@ html {
   left: 32px;
 }
 
-/* Body Styles */
+/* =========================================================
+   Layout
+========================================================= */
 
 body {
   margin: 0;
@@ -92,15 +107,64 @@ body {
   flex-direction: column;
   min-height: 100vh;
   background-color: var(--bg);
-  margin: 0;
 }
+
+.container {
+  max-width: 50rem;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+.content::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 120px;
+  backdrop-filter: blur(4px);
+}
+
+.content {
+  padding-top: 150px;
+  z-index: 0;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--button-bg);
+  font-size: 0.8rem;
+}
+
+.footer__rss {
+  text-decoration: none;
+  color: var(--button-bg);
+  border-bottom: 1px solid transparent;
+}
+
+.footer__rss:hover {
+  border-bottom-color: var(--button-bg);
+}
+
+/* =========================================================
+   Navbar
+========================================================= */
 
 .navbar {
   top: 0;
   width: 50rem;
+  height: 80px;
   position: fixed;
-  margin-left: auto;
-  margin-right: auto;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   justify-content: space-between;
   z-index: 1;
@@ -109,7 +173,8 @@ body {
 .navbar__left {
   display: flex;
   justify-content: start;
-  padding: 0px;
+  padding: 0;
+  height: 80px;
 }
 
 .navbar__logo {
@@ -119,7 +184,6 @@ body {
 .navbar__right {
   display: flex;
   margin-top: 30px;
-  padding: 0px;
   list-style-type: none;
   padding: 0;
 }
@@ -132,6 +196,7 @@ body {
   margin-bottom: 10px;
   margin-left: 7.5px;
   margin-right: 7.5px;
+  border-bottom: 2px solid transparent;
 }
 
 .navbar__link a:hover {
@@ -145,68 +210,293 @@ body {
   border-bottom: 2px solid var(--button-bg);
 }
 
-.container {
-  max-width: 50rem;
-  margin-left: auto;
-  margin-right: auto;
+/* =========================================================
+   Post header (date / read time / location)
+========================================================= */
+
+.post-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: baseline;
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.post-dates {
   display: flex;
-  min-height: 100vh;
   flex-direction: column;
+  gap: 0.15rem;
 }
 
-.content {
-  margin-top: 150px;
-  z-index: 0;
+.post-date {
+  white-space: nowrap;
+  text-align: left;
 }
 
-.content::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
+.post-updated {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.post-read-time {
+  font-style: italic;
+  text-align: center;
+}
+
+.post-location {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+/* =========================================================
+   Post list
+========================================================= */
+
+.post-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.post-list__item {
+  border-bottom: 1px solid #aeaeae;
+  border-top: 1px solid transparent;
+  padding-bottom: 0.5rem;
+}
+
+.post-list__item a {
+  text-decoration: none;
+  color: var(--text);
+  padding: 0.5rem 0;
   width: 100%;
-  height: 80px; /* Height of the top section you want to style */
-  backdrop-filter: blur(4px);
-  filter: blur(4px);
-  -o-filter: blur(4px);
-  -ms-filter: blur(4px);
-  -moz-filter: blur(4px);
-  -webkit-filter: blur(4px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.25rem;
 }
 
-.footer {
-  margin-top: auto;
-  padding-top: 1rem;
-  padding-bottom: 1rem;
-  margin-left: auto;
-  color: var(--button-bg);
-  font-size: 0.8rem;
+.post-list__headline {
+  display: flex;
+  justify-content: space-between;
 }
+
+.post-list__headline h2 {
+  max-width: calc(100% - 150px);
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.post-list__date {
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.post-list__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.post-list__location::before {
+  content: "🌍 ";
+}
+
+.post-list__location {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.post-list__tags {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.post-list__tag::before {
+  content: "#";
+  color: var(--button-bg);
+}
+
+.post-list__tag {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--text);
+  color: var(--text);
+  margin: 0.25rem;
+  border-radius: 5px;
+}
+
+.post-list__item:hover {
+  border-bottom: 1px solid var(--button-bg);
+}
+
+.post-list__item:hover h2 {
+  color: var(--button-bg);
+}
+
+.post-list__item:hover + .post-list__item {
+  border-top: 1px solid var(--button-bg);
+}
+
+/* =========================================================
+   Pagination
+========================================================= */
+
+.pagination {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+}
+
+.pagination__num {
+  text-decoration: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.pagination__num:hover {
+  color: var(--button-bg);
+}
+
+.pagination__num--current {
+  border-bottom: 2px solid var(--button-bg);
+}
+
+/* =========================================================
+   Tag filters
+========================================================= */
+
+.tag-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.tag-filters::before {
+  content: "filter: ";
+  font-size: 0.8rem;
+  opacity: 0.5;
+  white-space: nowrap;
+  align-self: center;
+}
+
+.tag-filter__btn {
+  text-decoration: none;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--text);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.tag-filter__btn:hover {
+  border-color: var(--button-bg);
+  color: var(--button-bg);
+}
+
+.tag-filter__btn--active {
+  border-color: var(--button-bg);
+  background: var(--button-bg);
+  color: var(--bg);
+}
+
+/* =========================================================
+   Content images
+========================================================= */
+
+.content img:not([class]) {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 1rem 0;
+}
+
+/* =========================================================
+   Blockquotes
+========================================================= */
+
+blockquote {
+  margin: 1.5rem 0;
+  padding: 0.75rem 1.25rem;
+  border-left: 3px solid var(--button-bg);
+  font-style: italic;
+  opacity: 0.85;
+}
+
+blockquote p {
+  margin: 0;
+}
+
+/* =========================================================
+   Code blocks
+========================================================= */
+
+pre {
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+code {
+  font-family: "Fira Code", monospace;
+  font-size: 0.9rem;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+/* =========================================================
+   Responsive
+========================================================= */
 
 @media (max-width: 55rem) {
   .navbar {
     flex-direction: column;
+    width: calc(100vw);
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
   }
+
   .navbar__right {
     margin-top: 10px;
-    width: 100vw;
-    justify-content: space-between;
   }
+
   .navbar__left {
+    height: 45px;
     width: 50vw;
-    margin-left: 0.5rem;
   }
+
   .navbar__link {
     margin-left: 0.5rem;
     margin-right: 0.5rem;
   }
+
   .content {
     margin-left: 1rem;
     margin-right: 1rem;
   }
+
   .content::before {
-    height: 130px;
+    height: 150px;
+    backdrop-filter: blur(8px);
   }
+
   .footer {
     margin-left: 1rem;
     margin-right: 1rem;

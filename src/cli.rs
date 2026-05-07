@@ -1,31 +1,54 @@
 use crate::build;
 use crate::init;
-use clap::{App, SubCommand};
+use crate::serve;
+use clap::{Arg, Command};
 
 pub fn parse_arguments() -> Result<(), String> {
-    let matches = App::new("SSG - Static Site Generator")
-        .version("1.0")
+    let matches = Command::new("rssg")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Radley E. Sidwell-Lewis")
         .about("A static site generator written in Rust")
-        .subcommand(SubCommand::with_name("init").about("Initialise a new SSG project"))
-        .subcommand(SubCommand::with_name("build").about("Build your SSG project"))
+        .subcommand(Command::new("init").about("Initialise a new project"))
+        .subcommand(Command::new("build").about("Build the project"))
+        .subcommand(Command::new("new").about("Create a new page in the current directory"))
+        .subcommand(
+            Command::new("serve")
+                .about("Serve the built site locally")
+                .arg(
+                    Arg::new("port")
+                        .short('p')
+                        .long("port")
+                        .default_value("8080")
+                        .help("Port to listen on"),
+                ),
+        )
         .get_matches();
 
-    if let Some(("init", _)) = matches.subcommand() {
-        if init::init_project().is_ok() {
-            println!("SSG project initialised successfully.");
-        } else {
-            return Err("Failed to initialise SSG project.".to_string());
+    match matches.subcommand() {
+        Some(("init", _)) => {
+            init::init_project().map_err(|e| e.to_string())?;
+            println!("Project initialised successfully.");
         }
-    } else if let Some(("build", _)) = matches.subcommand() {
-        if build::build_project().is_ok() {
-            println!("SSG project built successfully.");
-        } else {
-            return Err("Failed to build SSG project.".to_string());
+        Some(("build", _)) => {
+            build::build_project().map_err(|e| e.to_string())?;
+            println!("Project built successfully.");
         }
-    } else {
-        // Handle other commands or show help message here
-        println!("Use 'ssg init' to initialise a new SSG project.");
+        Some(("new", _)) => {
+            init::new_page().map_err(|e| e.to_string())?;
+            println!("Page created successfully.");
+        }
+        Some(("serve", sub)) => {
+            let port: u16 = sub
+                .get_one::<String>("port")
+                .map(|s| s.as_str())
+                .unwrap_or("8080")
+                .parse()
+                .map_err(|_| "Invalid port number".to_string())?;
+            serve::serve(port).map_err(|e| e.to_string())?;
+        }
+        _ => {
+            println!("Use 'rssg init' to initialise a new project.");
+        }
     }
 
     Ok(())
