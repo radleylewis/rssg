@@ -24,6 +24,99 @@ fn extract_language(opening_tag: &str) -> Option<&str> {
     Some(&rest[..end])
 }
 
+pub fn convert_callouts(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut remaining = html;
+
+    while let Some(bq_start) = remaining.find("<blockquote>") {
+        result.push_str(&remaining[..bq_start]);
+        let after_open = &remaining[bq_start + "<blockquote>".len()..];
+
+        let Some(bq_end) = after_open.find("</blockquote>") else {
+            result.push_str("<blockquote>");
+            remaining = after_open;
+            break;
+        };
+
+        let inner = after_open[..bq_end].trim();
+        remaining = &after_open[bq_end + "</blockquote>".len()..];
+
+        if !inner.starts_with("<p>[!") {
+            result.push_str("<blockquote>");
+            result.push_str(&after_open[..bq_end]);
+            result.push_str("</blockquote>");
+            continue;
+        }
+
+        // inner = "<p>[!type] title\nbody</p>...rest..."
+        let after_type_marker = &inner[5..]; // skip "<p>[!"
+        let Some(bracket_close) = after_type_marker.find(']') else {
+            result.push_str("<blockquote>");
+            result.push_str(&after_open[..bq_end]);
+            result.push_str("</blockquote>");
+            continue;
+        };
+
+        let callout_type = after_type_marker[..bracket_close].trim();
+        let type_lower = callout_type.to_lowercase();
+        let after_bracket = &after_type_marker[bracket_close + 1..];
+
+        let Some(p_close) = after_bracket.find("</p>") else {
+            result.push_str("<blockquote>");
+            result.push_str(&after_open[..bq_end]);
+            result.push_str("</blockquote>");
+            continue;
+        };
+
+        let first_p_content = after_bracket[..p_close].trim();
+        let after_first_p = after_bracket[p_close + 4..].trim();
+
+        let (title, inline_body) = match first_p_content.find('\n') {
+            Some(nl) => {
+                let t = first_p_content[..nl].trim();
+                let b = first_p_content[nl + 1..].trim();
+                (t, if b.is_empty() { None } else { Some(b) })
+            }
+            None => (first_p_content, None),
+        };
+
+        let title_html = if !title.is_empty() {
+            format!("<span class=\"callout__title\">{title}</span>")
+        } else {
+            String::new()
+        };
+
+        let mut body_parts = String::new();
+        if let Some(ib) = inline_body {
+            body_parts.push_str("<p>");
+            body_parts.push_str(ib);
+            body_parts.push_str("</p>");
+        }
+        if !after_first_p.is_empty() {
+            body_parts.push_str(after_first_p);
+        }
+
+        let body_html = if !body_parts.is_empty() {
+            format!("<div class=\"callout__body\">{body_parts}</div>")
+        } else {
+            String::new()
+        };
+
+        result.push_str(&format!(
+            "<div class=\"callout callout--{type_lower}\">\
+            <div class=\"callout__header\">\
+            <span class=\"callout__type\">{callout_type}</span>\
+            {title_html}\
+            </div>\
+            {body_html}\
+            </div>"
+        ));
+    }
+
+    result.push_str(remaining);
+    result
+}
+
 pub fn highlight_code_blocks(html: &str, ss: &syntect::parsing::SyntaxSet) -> String {
     let mut result = String::with_capacity(html.len() + 1024);
     let mut remaining = html;

@@ -1,6 +1,6 @@
 use crate::{
     frontmatter::{PageInfo, SiteConfig, parse_front_matter},
-    highlight::{highlight_code_blocks, syntax_highlight_css, CODE_COPY_SCRIPT},
+    highlight::{convert_callouts, highlight_code_blocks, syntax_highlight_css, CODE_COPY_SCRIPT},
     images::{copy_static_optimized, rewrite_image_refs},
     render::{
         generate_pagination_nav, generate_post_list, generate_rss, generate_sitemap,
@@ -11,12 +11,15 @@ use crate::{
         html_escape, path_to_url, read_all_files_recursive, slugify,
     },
 };
-use pulldown_cmark::{html, Parser};
+use pulldown_cmark::{html, Options, Parser};
 use std::{collections::HashMap, fs, path::{Path, PathBuf}};
 use syntect::highlighting::ThemeSet;
 
 fn convert_md_to_html(md_content: &str) -> String {
-    let parser = Parser::new(md_content);
+    let opts = Options::ENABLE_TABLES
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_TASKLISTS;
+    let parser = Parser::new_ext(md_content, opts);
     let mut html_output = String::new();
     html::push_html(&mut html_output, parser);
     html_output
@@ -165,7 +168,9 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         let keywords = html_escape(&pages[i].meta.tags.join(", "));
 
         let mut content = if pages[i].is_md {
-            highlight_code_blocks(&convert_md_to_html(&pages[i].body), &ss)
+            let html = convert_md_to_html(&pages[i].body);
+            let html = highlight_code_blocks(&html, &ss);
+            convert_callouts(&html)
         } else {
             highlight_code_blocks(&pages[i].body, &ss)
         };
