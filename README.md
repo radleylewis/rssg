@@ -7,12 +7,15 @@
 
 Write your site in Markdown or HTML. rssg includes:
 
-- Dark/light theme toggle — zero JavaScript
+- Dark/light theme toggle (CSS only, no JavaScript)
+- Code block language labels and copy button (minimal JavaScript, clipboard API only)
 - Support for Markdown and HTML pages
 - Front matter for per-page SEO metadata
 - Build-time syntax highlighting for code blocks
+- Auto-generated post lists for section index pages
+- RSS feed generation
 - Sitemap and robots.txt generation
-- Local dev server
+- Local dev server with hot reload
 
 ## Usage
 
@@ -28,7 +31,7 @@ cargo build --release
 rssg init
 ```
 
-Complete the prompts to scaffold a new project. This creates an `rssg.toml` config file, a `templates/` directory, and a `pages/` directory.
+Complete the prompts to scaffold a new project. Leave the project name blank to initialise in the current directory. This creates an `rssg.toml` config file, a `templates/` directory, and a `pages/` directory.
 
 ### Create a page
 
@@ -45,7 +48,10 @@ You will be prompted for a filename, file type (`md` or `html`), title, descript
 ---
 title: My Article
 description: A short summary
-keywords: rust, web
+tags: rust, web
+date: 2024-01-15
+location: London, UK
+draft: false
 ---
 
 # My Article
@@ -56,11 +62,27 @@ keywords: rust, web
 <!--
 title: My Page
 description: A short summary
-keywords: rust, web
+tags: rust, web
+date: 2024-01-15
+location: London, UK
+draft: false
 -->
 
 <h1>My Page</h1>
 ```
+
+**Front matter fields:**
+
+| Field | Description |
+|---|---|
+| `title` | Page title (overrides site title in `<title>`, OG tags, and RSS) |
+| `description` | Page description (overrides site default in meta and RSS) |
+| `tags` | Comma-separated tags (used for filtering, SEO keywords, and tag pages) |
+| `date` | Publication date in `YYYY-MM-DD` format (shown above content, used to sort posts, included in RSS) |
+| `location` | Where the post was written (displayed in the post header) |
+| `draft` | Set to `true` to exclude the page from build output |
+
+> **Tip:** For long descriptions, edit `rssg.toml` directly rather than typing in the prompt.
 
 ### Build
 
@@ -68,7 +90,7 @@ keywords: rust, web
 rssg build
 ```
 
-Outputs to `dist/`. Also generates `sitemap.xml`, `robots.txt`, and `404.html`.
+Outputs to `dist/`. Also generates `sitemap.xml`, `robots.txt`, `404.html`, and `feed.xml`.
 
 ### Serve locally
 
@@ -77,11 +99,11 @@ rssg serve
 rssg serve -p 3000
 ```
 
-Serves the `dist/` directory at `http://localhost:8080` (default).
+Serves the `dist/` directory at `http://localhost:8080` (default). Watches for file changes and rebuilds automatically - the browser reloads when a rebuild completes.
 
 ## Configuration
 
-`rssg.toml` in your project root:
+`rssg.toml` in your project root holds site-wide defaults. Per-page front matter overrides these values.
 
 ```toml
 title = "My Site"
@@ -90,6 +112,14 @@ author = "Your Name"
 description = "Site description"
 keywords = "keyword1, keyword2"
 ```
+
+## Post lists
+
+Any `index.md` or `index.html` inside a section directory (e.g. `pages/writing/`) will automatically have a list of sibling pages appended to it, sorted by date descending. Pages without a date appear at the end.
+
+## RSS feed
+
+An RSS feed is generated at `dist/feed.xml` and linked automatically in every page's `<head>`. It includes all non-index pages that have a `date` field in their front matter, sorted by date descending.
 
 ## Author
 

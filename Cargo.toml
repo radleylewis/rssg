@@ -13,3 +13,5 @@ serde = { version = "1", features = ["derive"] }
 toml = "1"
 tiny_http = "0.12"
 syntect = "5"
+notify = "6"
+two-face = "0.5.1"

@@ -51,7 +51,7 @@ fn generate_navbar_list(navbar_items: &str) -> String {
         .map(|item| item.trim())
         .map(|item| {
             format!(
-                "<li class=\"navbar__link\"><a href=\"/{}\">{}</a></li>",
+                "<li class=\"navbar__link\"><a href=\"/{}/\">{}</a></li>",
                 sanitise_string(item),
                 item
             )
@@ -68,7 +68,8 @@ pub fn new_page() -> Result<(), std::io::Error> {
         .interact_text()?;
     let title = prompt("Title")?;
     let description = prompt("Description")?;
-    let keywords = prompt("Keywords (comma-separated)")?;
+    let tags = prompt("Tags (comma-separated)")?;
+    let date = prompt("Date (YYYY-MM-DD, leave blank to omit)")?;
 
     let ext = if ext == "html" { "html" } else { "md" };
     let path = format!("{filename}.{ext}");
@@ -78,13 +79,19 @@ pub fn new_page() -> Result<(), std::io::Error> {
         return Err(std::io::Error::other("Operation canceled."));
     }
 
+    let date_line = if date.trim().is_empty() {
+        String::new()
+    } else {
+        format!("date: {}\n", date.trim())
+    };
+
     let content = match ext {
         "html" => format!(
-            "<!--\ntitle: {title}\ndescription: {description}\nkeywords: {keywords}\n-->\n\n<h1>{}</h1>\n",
+            "<!--\ntitle: {title}\ndescription: {description}\ntags: {tags}\n{date_line}-->\n\n<h1>{}</h1>\n",
             html_escape(&title)
         ),
         _ => format!(
-            "---\ntitle: {title}\ndescription: {description}\nkeywords: {keywords}\n---\n\n# {title}\n"
+            "---\ntitle: {title}\ndescription: {description}\ntags: {tags}\n{date_line}---\n\n# {title}\n"
         ),
     };
 
@@ -121,16 +128,14 @@ pub fn init_project() -> Result<(), std::io::Error> {
     let base_url = prompt("Enter the base URL of your website (e.g. https://example.com)")?;
     let author = prompt("Enter the author name")?;
     let description = prompt("Enter the site description")?;
-    let keywords = prompt("Enter keywords (comma-separated)")?;
     let pages = prompt("Enter navbar items (comma-separated)")?;
 
     let config = format!(
-        "title = \"{}\"\nbase_url = \"{}\"\nauthor = \"{}\"\ndescription = \"{}\"\nkeywords = \"{}\"\n",
+        "title = \"{}\"\nbase_url = \"{}\"\nauthor = \"{}\"\ndescription = \"{}\"\nposts_per_page = 10\n",
         toml_escape(&title),
         toml_escape(&base_url),
         toml_escape(&author),
         toml_escape(&description),
-        toml_escape(&keywords),
     );
     fs::write(format!("{base}/rssg.toml"), config)?;
 
@@ -158,6 +163,7 @@ pub fn init_project() -> Result<(), std::io::Error> {
             <meta http-equiv=\"pragma\" content=\"no-cache\" />
             <link rel=\"stylesheet\" href=\"/static/styles.css?v={{refresh_cache}}\" />
             <link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/static/logo.png?v={{refresh_cache}}\" />
+            <link rel=\"alternate\" type=\"application/rss+xml\" title=\"{{title}}\" href=\"{{base_url}}/feed.xml\" />
             <title>{{title}}</title>
             <meta name=\"description\" content=\"{{description}}\" />
             <meta name=\"author\" content=\"{{author}}\" />
@@ -218,9 +224,9 @@ mod tests {
     #[test]
     fn test_generate_navbar_list() {
         let input = "Home, About, Contact";
-        let expected = "<li class=\"navbar__link\"><a href=\"/home\">Home</a></li>\n\
-                        <li class=\"navbar__link\"><a href=\"/about\">About</a></li>\n\
-                        <li class=\"navbar__link\"><a href=\"/contact\">Contact</a></li>";
+        let expected = "<li class=\"navbar__link\"><a href=\"/home/\">Home</a></li>\n\
+                        <li class=\"navbar__link\"><a href=\"/about/\">About</a></li>\n\
+                        <li class=\"navbar__link\"><a href=\"/contact/\">Contact</a></li>";
         assert_eq!(generate_navbar_list(input), expected);
     }
 }
