@@ -131,16 +131,20 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut tag_map: HashMap<String, Vec<usize>> = HashMap::new();
     let mut section_all_tags: HashMap<String, Vec<String>> = HashMap::new();
+    let mut section_tag_map: HashMap<String, HashMap<String, Vec<usize>>> = HashMap::new();
     for (i, page) in pages.iter().enumerate() {
         if page.out_filename == "index.html" {
             continue;
         }
-        for tag in &page.meta.tags {
-            tag_map.entry(slugify(tag)).or_default().push(i);
-        }
         let section = page.relative_dir.components().next()
             .map(|c| c.as_os_str().to_string_lossy().into_owned())
             .unwrap_or_default();
+        for tag in &page.meta.tags {
+            let slug = slugify(tag);
+            tag_map.entry(slug.clone()).or_default().push(i);
+            section_tag_map.entry(section.clone()).or_default()
+                .entry(slug).or_default().push(i);
+        }
         let entry = section_all_tags.entry(section).or_default();
         for tag in &page.meta.tags {
             if !entry.contains(tag) {
@@ -232,7 +236,8 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 set.into_iter().collect()
             };
-            let tag_nav = generate_tag_nav(&section_tags, None, section_url);
+            let section_tag_base = format!("{section_url}tags/");
+            let tag_nav = generate_tag_nav(&section_tags, None, section_url, &section_tag_base);
             let chunk: Vec<&PageInfo> = siblings.iter().copied().take(posts_per_page).collect();
             let page1_content = format!(
                 "{content}{tag_nav}{}{}",
@@ -288,7 +293,46 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // --- Tag pages ---
+    // --- Section-scoped tag pages (e.g. /writing/tags/linux/) ---
+    for (section, tag_index) in &section_tag_map {
+        for (tag_slug, indices) in tag_index {
+            let tagged_pages: Vec<&PageInfo> = indices.iter().map(|&i| &pages[i]).collect();
+            let section_url = format!("/{section}/");
+            let tag_url = format!("/{section}/tags/{tag_slug}/");
+            let tag_base_url = format!("/{section}/tags/");
+            let tag_title = html_escape(tag_slug);
+            let section_tags = section_all_tags.get(section).cloned().unwrap_or_default();
+            let tag_nav = generate_tag_nav(&section_tags, Some(tag_slug), &section_url, &tag_base_url);
+            let total_tag_pages = tagged_pages.len().div_ceil(posts_per_page);
+
+            for page_num in 1..=total_tag_pages {
+                let chunk: Vec<&PageInfo> = tagged_pages.iter().copied()
+                    .skip((page_num - 1) * posts_per_page)
+                    .take(posts_per_page)
+                    .collect();
+                let page_tag_url = if page_num == 1 { tag_url.clone() } else { format!("{tag_url}{page_num}/") };
+                let page_full_url = format!("{base}{page_tag_url}");
+                let page_title = if page_num == 1 { tag_title.clone() } else { format!("{tag_title} — Page {page_num}") };
+                let content = format!(
+                    "{tag_nav}{}{}",
+                    generate_post_list(&chunk),
+                    generate_pagination_nav(page_num, total_tag_pages, &tag_url)
+                );
+                let out_dir = if page_num == 1 {
+                    format!("dist/{section}/tags/{tag_slug}")
+                } else {
+                    format!("dist/{section}/tags/{tag_slug}/{page_num}")
+                };
+                fs::create_dir_all(&out_dir)?;
+                fs::write(
+                    format!("{out_dir}/index.html"),
+                    render(&base_template, &page_title, &config.description, "", &page_full_url, "", "", &content, "en"),
+                )?;
+            }
+        }
+    }
+
+    // --- Global tag pages (kept for direct linking) ---
     fs::create_dir_all("dist/tags")?;
     for (tag_slug, indices) in &tag_map {
         let tagged_pages: Vec<&PageInfo> = indices.iter().map(|&i| &pages[i]).collect();
@@ -300,7 +344,8 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             .map(|c| c.as_os_str().to_string_lossy().into_owned())
             .unwrap_or_default();
         let section_tags = section_all_tags.get(&section_key).cloned().unwrap_or_default();
-        let tag_nav = generate_tag_nav(&section_tags, Some(tag_slug), &section_url);
+        let tag_base_url = format!("/{section_key}/tags/");
+        let tag_nav = generate_tag_nav(&section_tags, Some(tag_slug), &section_url, &tag_base_url);
         let total_tag_pages = tagged_pages.len().div_ceil(posts_per_page);
 
         for page_num in 1..=total_tag_pages {

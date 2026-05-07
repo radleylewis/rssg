@@ -46,7 +46,7 @@ pub fn render_page(
     )
 }
 
-pub fn generate_tag_nav(all_tags: &[String], active_tag: Option<&str>, section_url: &str) -> String {
+pub fn generate_tag_nav(all_tags: &[String], active_tag: Option<&str>, section_url: &str, tag_base_url: &str) -> String {
     if all_tags.is_empty() {
         return String::new();
     }
@@ -65,7 +65,7 @@ pub fn generate_tag_nav(all_tags: &[String], active_tag: Option<&str>, section_u
             "tag-filter__btn"
         };
         html.push_str(&format!(
-            "<a href=\"/tags/{slug}/\" class=\"{class}\">{}</a>", html_escape(tag)
+            "<a href=\"{tag_base_url}{slug}/\" class=\"{class}\">{}</a>", html_escape(tag)
         ));
     }
     format!("<nav class=\"tag-filters\">{html}</nav>")
