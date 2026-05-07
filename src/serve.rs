@@ -68,22 +68,17 @@ pub fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        loop {
-            match rx.recv() {
-                Ok(_) => {
-                    std::thread::sleep(Duration::from_millis(100));
-                    while rx.try_recv().is_ok() {}
+        while rx.recv().is_ok() {
+            std::thread::sleep(Duration::from_millis(100));
+            while rx.try_recv().is_ok() {}
 
-                    println!("Change detected, rebuilding...");
-                    match build::build_project() {
-                        Ok(()) => {
-                            build_id_watcher.store(now_millis(), Ordering::Relaxed);
-                            println!("Done.");
-                        }
-                        Err(e) => eprintln!("Build error: {e}"),
-                    }
+            println!("Change detected, rebuilding...");
+            match build::build_project() {
+                Ok(()) => {
+                    build_id_watcher.store(now_millis(), Ordering::Relaxed);
+                    println!("Done.");
                 }
-                Err(_) => break,
+                Err(e) => eprintln!("Build error: {e}"),
             }
         }
     });

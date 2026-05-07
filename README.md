@@ -113,7 +113,21 @@ base_url = "https://example.com"
 author = "Your Name"
 description = "Site description"
 posts_per_page = 10
+
+# Image optimisation (optional)
+optimize_images = true
+max_image_width = 1200
 ```
+
+| Field | Default | Description |
+|---|---|---|
+| `title` | required | Site title used in `<title>`, OG tags, and RSS |
+| `base_url` | required | Canonical base URL (no trailing slash) |
+| `author` | required | Author name used in footer and meta tags |
+| `description` | required | Site-wide default description for meta and RSS |
+| `posts_per_page` | `10` | Number of posts per paginated listing page |
+| `optimize_images` | `false` | Convert raster images in `static/` to WebP during build |
+| `max_image_width` | none | Resize images wider than this (pixels) before converting |
 
 ## Post lists
 

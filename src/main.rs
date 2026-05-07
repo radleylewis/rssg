@@ -1,6 +1,10 @@
 mod build;
 mod cli;
+mod frontmatter;
+mod highlight;
+mod images;
 mod init;
+mod render;
 mod serve;
 mod utils;
 
