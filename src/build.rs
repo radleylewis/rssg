@@ -13,9 +13,7 @@ use syntect::{
     util::LinesWithEndings,
 };
 
-fn default_posts_per_page() -> usize {
-    10
-}
+fn default_posts_per_page() -> usize { 10 }
 
 #[derive(Deserialize)]
 struct SiteConfig {
@@ -25,6 +23,10 @@ struct SiteConfig {
     description: String,
     #[serde(default = "default_posts_per_page")]
     posts_per_page: usize,
+    #[serde(default)]
+    optimize_images: bool,
+    #[serde(default)]
+    max_image_width: Option<u32>,
 }
 
 #[derive(Default)]
@@ -500,6 +502,65 @@ fn render_page(
     )
 }
 
+const RASTER_EXTS: &[&str] = &["png", "jpg", "jpeg", "bmp"];
+
+fn copy_static_optimized(
+    src: &Path,
+    dest: &Path,
+    max_width: Option<u32>,
+    converted: &mut Vec<String>,
+    prefix: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        let Some(name) = path.file_name() else { continue };
+        let name_str = name.to_string_lossy();
+        let rel = if prefix.is_empty() { name_str.to_string() } else { format!("{prefix}/{name_str}") };
+        let dest_base = dest.join(name);
+        if path.is_dir() {
+            fs::create_dir_all(&dest_base)?;
+            copy_static_optimized(&path, &dest_base, max_width, converted, &rel)?;
+        } else {
+            let ext = path.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).unwrap_or_default();
+            if RASTER_EXTS.contains(&ext.as_str()) {
+                let stem = path.file_stem().unwrap_or(name).to_string_lossy();
+                let dest_webp = dest.join(format!("{stem}.webp"));
+                match image::open(&path) {
+                    Ok(img) => {
+                        let img = match max_width {
+                            Some(max_w) if img.width() > max_w => img.resize(max_w, u32::MAX, image::imageops::FilterType::Lanczos3),
+                            _ => img,
+                        };
+                        img.save(&dest_webp)?;
+                        converted.push(rel);
+                    }
+                    Err(e) => {
+                        eprintln!("[WARNING] Could not optimize {}: {e} — copying as-is", path.display());
+                        fs::copy(&path, &dest_base)?;
+                    }
+                }
+            } else {
+                fs::copy(&path, &dest_base)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn rewrite_image_refs(html: &str, converted: &[String]) -> String {
+    let mut result = html.to_string();
+    for rel in converted {
+        if let Some((stem, _)) = rel.rsplit_once('.') {
+            result = result.replace(
+                &format!("/static/{rel}"),
+                &format!("/static/{stem}.webp"),
+            );
+        }
+    }
+    result
+}
+
 const CODE_COPY_SCRIPT: &str = "<script>\
 document.querySelectorAll('.code-block__copy').forEach(function(btn){\
   btn.addEventListener('click',function(){\
@@ -521,21 +582,35 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         fs::remove_dir_all("dist")?;
     }
     fs::create_dir_all("dist/static")?;
+    let mut converted_images: Vec<String> = Vec::new();
     if Path::new("static").is_dir() {
-        copy_directory(Path::new("./static"), Path::new("./dist/static"))?;
+        if config.optimize_images {
+            copy_static_optimized(
+                Path::new("static"),
+                Path::new("dist/static"),
+                config.max_image_width,
+                &mut converted_images,
+                "",
+            )?;
+        } else {
+            copy_directory(Path::new("./static"), Path::new("./dist/static"))?;
+        }
     }
 
     let ss = two_face::syntax::extra_newlines();
     let ts = ThemeSet::load_defaults();
     let highlight_css = syntax_highlight_css(&ts);
 
-    let base_template = fs::read_to_string("templates/template.html")?
-        .replace("{{refresh_cache}}", &build_timestamp().to_string())
-        .replace("{{year}}", &current_year().to_string())
-        .replace("{{author}}", &html_escape(&config.author))
-        .replace("{{base_url}}", base)
-        .replace("</head>", &format!("{highlight_css}</head>"))
-        .replace("</body>", &format!("{CODE_COPY_SCRIPT}</body>"));
+    let base_template = {
+        let t = fs::read_to_string("templates/template.html")?
+            .replace("{{refresh_cache}}", &build_timestamp().to_string())
+            .replace("{{year}}", &current_year().to_string())
+            .replace("{{author}}", &html_escape(&config.author))
+            .replace("{{base_url}}", base)
+            .replace("</head>", &format!("{highlight_css}</head>"))
+            .replace("</body>", &format!("{CODE_COPY_SCRIPT}</body>"));
+        if converted_images.is_empty() { t } else { rewrite_image_refs(&t, &converted_images) }
+    };
 
     // --- Pass 1: collect all page metadata ---
     let mut raw_files = Vec::new();
@@ -630,6 +705,11 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
     // --- Pass 2: render pages ---
     let mut urls: Vec<(String, Option<String>)> = Vec::new();
 
+    let render = |tmpl: &str, title: &str, desc: &str, kw: &str, url: &str, name: &str, content: &str, lang: &str| -> String {
+        let html = render_page(tmpl, title, desc, kw, url, name, content, lang);
+        if converted_images.is_empty() { html } else { rewrite_image_refs(&html, &converted_images) }
+    };
+
     for i in 0..pages.len() {
         let title = html_escape(pages[i].meta.title.as_deref().unwrap_or(&config.title));
         let description = html_escape(
@@ -716,7 +796,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             fs::create_dir_all(&out_dir)?;
             fs::write(
                 format!("{out_dir}/index.html"),
-                render_page(
+                render(
                     &base_template,
                     &title,
                     &description,
@@ -772,7 +852,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             fs::create_dir_all(&out_dir)?;
             fs::write(
                 format!("{out_dir}/index.html"),
-                render_page(
+                render(
                     &base_template,
                     &title,
                     &description,
@@ -839,7 +919,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             fs::create_dir_all(&out_dir)?;
             fs::write(
                 format!("{out_dir}/index.html"),
-                render_page(
+                render(
                     &base_template,
                     &page_title,
                     &config.description,
@@ -866,7 +946,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         .join("\n");
     fs::write(
         "dist/404.html",
-        render_page(
+        render(
             &not_found_template,
             "404 - Page Not Found",
             "The page you are looking for does not exist.",
