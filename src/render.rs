@@ -1,6 +1,19 @@
 use crate::frontmatter::{PageInfo, SiteConfig};
 use crate::utils::{format_date, format_rfc822, html_escape, slugify, xml_escape};
 
+pub fn apply_article_meta(html: &str, published: &str, modified: Option<&str>, author: &str) -> String {
+    let article_tags = format!(
+        "<meta property=\"og:type\" content=\"article\" />\n\
+        <meta property=\"article:published_time\" content=\"{published}\" />\n\
+        {modified_tag}\
+        <meta property=\"article:author\" content=\"{author}\" />",
+        modified_tag = modified
+            .map(|m| format!("<meta property=\"article:modified_time\" content=\"{m}\" />\n"))
+            .unwrap_or_default(),
+    );
+    html.replace("<meta property=\"og:type\" content=\"website\" />", &article_tags)
+}
+
 pub fn add_active_id_to_navbar(html: &str, page_name: &str) -> String {
     let search = format!("href=\"/{}/\"", page_name);
     let replace = format!("href=\"/{}/\" id=\"active\"", page_name);

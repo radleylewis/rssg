@@ -3,8 +3,8 @@ use crate::{
     highlight::{convert_callouts, highlight_code_blocks, syntax_highlight_css, CODE_COPY_SCRIPT},
     images::{copy_static_optimized, rewrite_image_refs},
     render::{
-        generate_pagination_nav, generate_post_list, generate_rss, generate_sitemap,
-        generate_tag_nav, render_page, section_url_for_pages,
+        apply_article_meta, generate_pagination_nav, generate_post_list, generate_rss,
+        generate_sitemap, generate_tag_nav, render_page, section_url_for_pages,
     },
     utils::{
         build_timestamp, copy_directory, current_year, estimate_read_time, format_date,
@@ -276,10 +276,13 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                 format!("dist/{}/{stem}", path_to_url(&pages[i].relative_dir))
             };
             fs::create_dir_all(&out_dir)?;
-            fs::write(
-                format!("{out_dir}/index.html"),
-                render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &content, lang),
-            )?;
+            let rendered = render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &content, lang);
+            let rendered = if let Some(published) = pages[i].meta.date.as_deref() {
+                apply_article_meta(&rendered, published, pages[i].meta.last_edited.as_deref(), &config.author)
+            } else {
+                rendered
+            };
+            fs::write(format!("{out_dir}/index.html"), rendered)?;
             let lastmod = pages[i].meta.last_edited.clone().or_else(|| pages[i].meta.date.clone());
             urls.push((pages[i].page_url.clone(), lastmod));
         }
