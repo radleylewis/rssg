@@ -12,7 +12,8 @@ use crate::{
     },
 };
 use pulldown_cmark::{html, Options, Parser};
-use std::{collections::HashMap, fs, path::{Path, PathBuf}};
+use rayon::prelude::*;
+use std::{collections::HashMap, fs, io, path::{Path, PathBuf}};
 use syntect::highlighting::ThemeSet;
 
 fn convert_md_to_html(md_content: &str) -> String {
@@ -164,194 +165,166 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         if converted_images.is_empty() { html } else { rewrite_image_refs(&html, &converted_images) }
     };
 
-    for i in 0..pages.len() {
-        let title = html_escape(pages[i].meta.title.as_deref().unwrap_or(&config.title));
-        let description = html_escape(
-            pages[i].meta.description.as_deref().unwrap_or(&config.description),
-        );
-        let keywords = html_escape(&pages[i].meta.tags.join(", "));
-
-        let mut content = if pages[i].is_md {
-            let html = convert_md_to_html(&pages[i].body);
-            let html = highlight_code_blocks(&html, &ss);
-            convert_callouts(&html)
-        } else {
-            highlight_code_blocks(&pages[i].body, &ss)
-        };
-
-        let location = pages[i].meta.location.as_deref()
-            .map(|l| format!("<span class=\"post-location\">{l}</span>"))
-            .unwrap_or_default();
-
-        if pages[i].meta.date.is_some() || !location.is_empty() {
-            let date_html = pages[i].meta.date.as_deref().map(|d| {
-                format!("<time class=\"post-date\" datetime=\"{d}\">{}</time>", format_date(d))
-            }).unwrap_or_default();
-            let edited_html = pages[i].meta.last_edited.as_deref()
-                .filter(|&e| Some(e) != pages[i].meta.date.as_deref())
-                .map(|e| format!("<time class=\"post-updated\" datetime=\"{e}\">Updated: {}</time>", format_date(e)))
-                .unwrap_or_default();
-            let dates_html = if edited_html.is_empty() {
-                date_html
-            } else {
-                format!("<div class=\"post-dates\">{date_html}{edited_html}</div>")
-            };
-            let read_time = format!("<span class=\"post-read-time\">{} min read</span>", estimate_read_time(&pages[i].body));
-            content = format!("<div class=\"post-header\">{dates_html}{read_time}{location}</div>\n{content}");
-        }
-
-        let current_page_name = pages[i].relative_dir.components().next()
-            .and_then(|c| c.as_os_str().to_str())
-            .unwrap_or("");
-        let lang = pages[i].meta.language.as_deref().unwrap_or("en");
-        let first_image = extract_first_image_src(&content);
-        let og_image = pages[i].meta.og_image.as_deref()
-            .or(first_image)
-            .or(config.og_image.as_deref())
-            .map(|p| if p.starts_with("http") { p.to_string() } else { format!("{base}{p}") })
-            .unwrap_or_default();
-
-        if pages[i].out_filename == "index.html" {
-            let siblings: Vec<&PageInfo> = dir_index
-                .get(&pages[i].relative_dir)
-                .map(|indices| {
-                    indices.iter()
-                        .filter(|&&j| j != i && pages[j].out_filename != "index.html")
-                        .map(|&j| &pages[j])
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            let total_pages = if siblings.is_empty() {
-                1
-            } else {
-                siblings.len().div_ceil(posts_per_page)
-            };
-
-            let section_url = &pages[i].page_url;
-            let section_tags: Vec<String> = {
-                let mut set = std::collections::BTreeSet::new();
-                for p in &siblings {
-                    for tag in &p.meta.tags {
-                        set.insert(tag.clone());
-                    }
-                }
-                set.into_iter().collect()
-            };
-            let section_tag_base = format!("{section_url}tags/");
-            let tag_nav = generate_tag_nav(&section_tags, None, section_url, &section_tag_base);
-            let chunk: Vec<&PageInfo> = siblings.iter().copied().take(posts_per_page).collect();
-            let page1_content = format!(
-                "{content}{tag_nav}{}{}",
-                generate_post_list(&chunk),
-                generate_pagination_nav(1, total_pages, section_url)
+    // --- Main pages (parallel) ---
+    let page_results: Vec<io::Result<Vec<(String, Option<String>)>>> = (0..pages.len())
+        .into_par_iter()
+        .map(|i| -> io::Result<Vec<(String, Option<String>)>> {
+            let mut local_urls: Vec<(String, Option<String>)> = Vec::new();
+            let title = html_escape(pages[i].meta.title.as_deref().unwrap_or(&config.title));
+            let description = html_escape(
+                pages[i].meta.description.as_deref().unwrap_or(&config.description),
             );
+            let keywords = html_escape(&pages[i].meta.tags.join(", "));
 
-            let out_dir = format!("dist/{}", path_to_url(&pages[i].relative_dir));
-            fs::create_dir_all(&out_dir)?;
-            fs::write(
-                format!("{out_dir}/index.html"),
-                render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &page1_content, lang),
-            )?;
-            urls.push((pages[i].page_url.clone(), None));
-
-            for page_num in 2..=total_pages {
-                let chunk: Vec<&PageInfo> = siblings.iter().copied()
-                    .skip((page_num - 1) * posts_per_page)
-                    .take(posts_per_page)
-                    .collect();
-                let page_url = format!("{section_url}{page_num}/");
-                let full_url = format!("{base}{page_url}");
-                let page_title = format!("{title} — Page {page_num}");
-                let page_content = format!(
-                    "{tag_nav}{}{}",
-                    generate_post_list(&chunk),
-                    generate_pagination_nav(page_num, total_pages, section_url)
-                );
-                let page_out_dir = format!("dist/{}/{page_num}", path_to_url(&pages[i].relative_dir));
-                fs::create_dir_all(&page_out_dir)?;
-                fs::write(
-                    format!("{page_out_dir}/index.html"),
-                    render(&base_template, &page_title, &description, &keywords, &full_url, &og_image, current_page_name, &page_content, lang),
-                )?;
-            }
-        } else {
-            let stem = pages[i].out_filename.trim_end_matches(".html");
-            let out_dir = if pages[i].relative_dir.as_os_str().is_empty() {
-                format!("dist/{stem}")
+            let mut content = if pages[i].is_md {
+                let html = convert_md_to_html(&pages[i].body);
+                let html = highlight_code_blocks(&html, &ss);
+                convert_callouts(&html)
             } else {
-                format!("dist/{}/{stem}", path_to_url(&pages[i].relative_dir))
+                highlight_code_blocks(&pages[i].body, &ss)
             };
-            fs::create_dir_all(&out_dir)?;
-            let related = generate_related_articles(&pages[i], &pages);
-            if !related.is_empty() {
-                content.push('\n');
-                content.push_str(&related);
-            }
-            let rendered = render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &content, lang);
-            let rendered = if let Some(published) = pages[i].meta.date.as_deref() {
-                apply_article_meta(&rendered, published, pages[i].meta.last_edited.as_deref(), &config.author)
-            } else {
-                rendered
-            };
-            fs::write(format!("{out_dir}/index.html"), rendered)?;
-            let lastmod = pages[i].meta.last_edited.clone().or_else(|| pages[i].meta.date.clone());
-            urls.push((pages[i].page_url.clone(), lastmod));
-        }
-    }
 
-    // --- Section-scoped tag pages (e.g. /writing/tags/linux/) ---
-    for (section, tag_index) in &section_tag_map {
-        for (tag_slug, indices) in tag_index {
-            let tagged_pages: Vec<&PageInfo> = indices.iter().map(|&i| &pages[i]).collect();
-            let section_url = format!("/{section}/");
-            let tag_url = format!("/{section}/tags/{tag_slug}/");
-            let tag_base_url = format!("/{section}/tags/");
-            let tag_title = html_escape(tag_slug);
-            let section_tags = section_all_tags.get(section).cloned().unwrap_or_default();
-            let tag_nav = generate_tag_nav(&section_tags, Some(tag_slug), &section_url, &tag_base_url);
-            let total_tag_pages = tagged_pages.len().div_ceil(posts_per_page);
+            let location = pages[i].meta.location.as_deref()
+                .map(|l| format!("<span class=\"post-location\">{l}</span>"))
+                .unwrap_or_default();
 
-            for page_num in 1..=total_tag_pages {
-                let chunk: Vec<&PageInfo> = tagged_pages.iter().copied()
-                    .skip((page_num - 1) * posts_per_page)
-                    .take(posts_per_page)
-                    .collect();
-                let page_tag_url = if page_num == 1 { tag_url.clone() } else { format!("{tag_url}{page_num}/") };
-                let page_full_url = format!("{base}{page_tag_url}");
-                let page_title = if page_num == 1 { tag_title.clone() } else { format!("{tag_title} — Page {page_num}") };
-                let content = format!(
-                    "{tag_nav}{}{}",
-                    generate_post_list(&chunk),
-                    generate_pagination_nav(page_num, total_tag_pages, &tag_url)
-                );
-                let out_dir = if page_num == 1 {
-                    format!("dist/{section}/tags/{tag_slug}")
+            if pages[i].meta.date.is_some() || !location.is_empty() {
+                let date_html = pages[i].meta.date.as_deref().map(|d| {
+                    format!("<time class=\"post-date\" datetime=\"{d}\">{}</time>", format_date(d))
+                }).unwrap_or_default();
+                let edited_html = pages[i].meta.last_edited.as_deref()
+                    .filter(|&e| Some(e) != pages[i].meta.date.as_deref())
+                    .map(|e| format!("<time class=\"post-updated\" datetime=\"{e}\">Updated: {}</time>", format_date(e)))
+                    .unwrap_or_default();
+                let dates_html = if edited_html.is_empty() {
+                    date_html
                 } else {
-                    format!("dist/{section}/tags/{tag_slug}/{page_num}")
+                    format!("<div class=\"post-dates\">{date_html}{edited_html}</div>")
                 };
+                let read_time = format!("<span class=\"post-read-time\">{} min read</span>", estimate_read_time(&pages[i].body));
+                content = format!("<div class=\"post-header\">{dates_html}{read_time}{location}</div>\n{content}");
+            }
+
+            let current_page_name = pages[i].relative_dir.components().next()
+                .and_then(|c| c.as_os_str().to_str())
+                .unwrap_or("");
+            let lang = pages[i].meta.language.as_deref().unwrap_or("en");
+            let first_image = extract_first_image_src(&content);
+            let og_image = pages[i].meta.og_image.as_deref()
+                .or(first_image)
+                .or(config.og_image.as_deref())
+                .map(|p| if p.starts_with("http") { p.to_string() } else { format!("{base}{p}") })
+                .unwrap_or_default();
+
+            if pages[i].out_filename == "index.html" {
+                let siblings: Vec<&PageInfo> = dir_index
+                    .get(&pages[i].relative_dir)
+                    .map(|indices| {
+                        indices.iter()
+                            .filter(|&&j| j != i && pages[j].out_filename != "index.html")
+                            .map(|&j| &pages[j])
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let total_pages = if siblings.is_empty() {
+                    1
+                } else {
+                    siblings.len().div_ceil(posts_per_page)
+                };
+
+                let section_url = &pages[i].page_url;
+                let section_tags: Vec<String> = {
+                    let mut set = std::collections::BTreeSet::new();
+                    for p in &siblings {
+                        for tag in &p.meta.tags {
+                            set.insert(tag.clone());
+                        }
+                    }
+                    set.into_iter().collect()
+                };
+                let section_tag_base = format!("{section_url}tags/");
+                let tag_nav = generate_tag_nav(&section_tags, None, section_url, &section_tag_base);
+                let chunk: Vec<&PageInfo> = siblings.iter().copied().take(posts_per_page).collect();
+                let page1_content = format!(
+                    "{content}{tag_nav}{}{}",
+                    generate_post_list(&chunk),
+                    generate_pagination_nav(1, total_pages, section_url)
+                );
+
+                let out_dir = format!("dist/{}", path_to_url(&pages[i].relative_dir));
                 fs::create_dir_all(&out_dir)?;
                 fs::write(
                     format!("{out_dir}/index.html"),
-                    render(&base_template, &page_title, &config.description, "", &page_full_url, "", section, &content, "en"),
+                    render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &page1_content, lang),
                 )?;
+                local_urls.push((pages[i].page_url.clone(), None));
+
+                for page_num in 2..=total_pages {
+                    let chunk: Vec<&PageInfo> = siblings.iter().copied()
+                        .skip((page_num - 1) * posts_per_page)
+                        .take(posts_per_page)
+                        .collect();
+                    let page_url = format!("{section_url}{page_num}/");
+                    let full_url = format!("{base}{page_url}");
+                    let page_title = format!("{title} — Page {page_num}");
+                    let page_content = format!(
+                        "{tag_nav}{}{}",
+                        generate_post_list(&chunk),
+                        generate_pagination_nav(page_num, total_pages, section_url)
+                    );
+                    let page_out_dir = format!("dist/{}/{page_num}", path_to_url(&pages[i].relative_dir));
+                    fs::create_dir_all(&page_out_dir)?;
+                    fs::write(
+                        format!("{page_out_dir}/index.html"),
+                        render(&base_template, &page_title, &description, &keywords, &full_url, &og_image, current_page_name, &page_content, lang),
+                    )?;
+                }
+            } else {
+                let stem = pages[i].out_filename.trim_end_matches(".html");
+                let out_dir = if pages[i].relative_dir.as_os_str().is_empty() {
+                    format!("dist/{stem}")
+                } else {
+                    format!("dist/{}/{stem}", path_to_url(&pages[i].relative_dir))
+                };
+                fs::create_dir_all(&out_dir)?;
+                let related = generate_related_articles(&pages[i], &pages);
+                if !related.is_empty() {
+                    content.push('\n');
+                    content.push_str(&related);
+                }
+                let rendered = render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &content, lang);
+                let rendered = if let Some(published) = pages[i].meta.date.as_deref() {
+                    apply_article_meta(&rendered, published, pages[i].meta.last_edited.as_deref(), &config.author)
+                } else {
+                    rendered
+                };
+                fs::write(format!("{out_dir}/index.html"), rendered)?;
+                let lastmod = pages[i].meta.last_edited.clone().or_else(|| pages[i].meta.date.clone());
+                local_urls.push((pages[i].page_url.clone(), lastmod));
             }
-        }
+            Ok(local_urls)
+        })
+        .collect();
+    for result in page_results {
+        urls.extend(result?);
     }
 
-    // --- Global tag pages (kept for direct linking) ---
-    fs::create_dir_all("dist/tags")?;
-    for (tag_slug, indices) in &tag_map {
+    // --- Section-scoped tag pages (parallel) ---
+    let section_tag_pairs: Vec<(&String, &String, &Vec<usize>)> = section_tag_map
+        .iter()
+        .flat_map(|(section, tag_index)| {
+            tag_index.iter().map(move |(tag_slug, indices)| (section, tag_slug, indices))
+        })
+        .collect();
+
+    section_tag_pairs.par_iter().try_for_each(|(section, tag_slug, indices)| -> io::Result<()> {
         let tagged_pages: Vec<&PageInfo> = indices.iter().map(|&i| &pages[i]).collect();
-        let tag_url = format!("/tags/{tag_slug}/");
+        let section_url = format!("/{section}/");
+        let tag_url = format!("/{section}/tags/{tag_slug}/");
+        let tag_base_url = format!("/{section}/tags/");
         let tag_title = html_escape(tag_slug);
-        let section_url = section_url_for_pages(&tagged_pages);
-        let section_key = tagged_pages.iter()
-            .find_map(|p| p.relative_dir.components().next())
-            .map(|c| c.as_os_str().to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let section_tags = section_all_tags.get(&section_key).cloned().unwrap_or_default();
-        let tag_base_url = format!("/{section_key}/tags/");
+        let section_tags = section_all_tags.get(*section).cloned().unwrap_or_default();
         let tag_nav = generate_tag_nav(&section_tags, Some(tag_slug), &section_url, &tag_base_url);
         let total_tag_pages = tagged_pages.len().div_ceil(posts_per_page);
 
@@ -369,19 +342,66 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                 generate_pagination_nav(page_num, total_tag_pages, &tag_url)
             );
             let out_dir = if page_num == 1 {
-                format!("dist/tags/{tag_slug}")
+                format!("dist/{section}/tags/{tag_slug}")
             } else {
-                format!("dist/tags/{tag_slug}/{page_num}")
+                format!("dist/{section}/tags/{tag_slug}/{page_num}")
             };
             fs::create_dir_all(&out_dir)?;
             fs::write(
                 format!("{out_dir}/index.html"),
-                render(&base_template, &page_title, &config.description, "", &page_full_url, "", &section_key, &content, "en"),
+                render(&base_template, &page_title, &config.description, "", &page_full_url, "", section, &content, "en"),
             )?;
-            if page_num == 1 {
-                urls.push((page_tag_url, None));
-            }
         }
+        Ok(())
+    })?;
+
+    // --- Global tag pages (parallel) ---
+    fs::create_dir_all("dist/tags")?;
+    let global_tag_results: Vec<io::Result<(String, Option<String>)>> = tag_map
+        .par_iter()
+        .map(|(tag_slug, indices)| -> io::Result<(String, Option<String>)> {
+            let tagged_pages: Vec<&PageInfo> = indices.iter().map(|&i| &pages[i]).collect();
+            let tag_url = format!("/tags/{tag_slug}/");
+            let tag_title = html_escape(tag_slug);
+            let section_url = section_url_for_pages(&tagged_pages);
+            let section_key = tagged_pages.iter()
+                .find_map(|p| p.relative_dir.components().next())
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let section_tags = section_all_tags.get(&section_key).cloned().unwrap_or_default();
+            let tag_base_url = format!("/{section_key}/tags/");
+            let tag_nav = generate_tag_nav(&section_tags, Some(tag_slug), &section_url, &tag_base_url);
+            let total_tag_pages = tagged_pages.len().div_ceil(posts_per_page);
+
+            for page_num in 1..=total_tag_pages {
+                let chunk: Vec<&PageInfo> = tagged_pages.iter().copied()
+                    .skip((page_num - 1) * posts_per_page)
+                    .take(posts_per_page)
+                    .collect();
+                let page_tag_url = if page_num == 1 { tag_url.clone() } else { format!("{tag_url}{page_num}/") };
+                let page_full_url = format!("{base}{page_tag_url}");
+                let page_title = if page_num == 1 { tag_title.clone() } else { format!("{tag_title} — Page {page_num}") };
+                let content = format!(
+                    "{tag_nav}{}{}",
+                    generate_post_list(&chunk),
+                    generate_pagination_nav(page_num, total_tag_pages, &tag_url)
+                );
+                let out_dir = if page_num == 1 {
+                    format!("dist/tags/{tag_slug}")
+                } else {
+                    format!("dist/tags/{tag_slug}/{page_num}")
+                };
+                fs::create_dir_all(&out_dir)?;
+                fs::write(
+                    format!("{out_dir}/index.html"),
+                    render(&base_template, &page_title, &config.description, "", &page_full_url, "", &section_key, &content, "en"),
+                )?;
+            }
+            Ok((tag_url, None))
+        })
+        .collect();
+    for result in global_tag_results {
+        urls.push(result?);
     }
 
     fs::write("dist/sitemap.xml", generate_sitemap(&config.base_url, &urls))?;

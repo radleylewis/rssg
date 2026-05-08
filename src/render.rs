@@ -1,5 +1,7 @@
 use crate::frontmatter::{PageInfo, SiteConfig};
+use crate::highlight::convert_callouts;
 use crate::utils::{format_date, format_rfc822, html_escape, slugify, xml_escape};
+use pulldown_cmark::{html as cm_html, Options, Parser};
 
 pub fn apply_article_meta(html: &str, published: &str, modified: Option<&str>, author: &str) -> String {
     let article_tags = format!(
@@ -206,8 +208,27 @@ pub fn generate_rss(config: &SiteConfig, pages: &[PageInfo]) -> String {
             let url = xml_escape(&p.full_url);
             let desc = xml_escape(p.meta.description.as_deref().unwrap_or(&config.description));
             let date = p.meta.date.as_deref().map(format_rfc822).unwrap_or_default();
+            let body_html = if p.is_md {
+                let opts = Options::ENABLE_TABLES
+                    | Options::ENABLE_STRIKETHROUGH
+                    | Options::ENABLE_TASKLISTS;
+                let parser = Parser::new_ext(&p.body, opts);
+                let mut out = String::new();
+                cm_html::push_html(&mut out, parser);
+                convert_callouts(&out)
+            } else {
+                p.body.clone()
+            };
+            let cdata = body_html.replace("]]>", "]]>]]><![CDATA[");
             format!(
-                "<item><title>{title}</title><link>{url}</link><description>{desc}</description><pubDate>{date}</pubDate><guid isPermaLink=\"true\">{url}</guid></item>"
+                "<item>\
+                <title>{title}</title>\
+                <link>{url}</link>\
+                <description>{desc}</description>\
+                <pubDate>{date}</pubDate>\
+                <guid isPermaLink=\"true\">{url}</guid>\
+                <content:encoded><![CDATA[{cdata}]]></content:encoded>\
+                </item>"
             )
         })
         .collect::<Vec<_>>()
@@ -220,7 +241,7 @@ pub fn generate_rss(config: &SiteConfig, pages: &[PageInfo]) -> String {
         .unwrap_or_default();
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
-        <rss version=\"2.0\"><channel>\
+        <rss version=\"2.0\" xmlns:content=\"http://purl.org/rss/1.1/modules/content/\"><channel>\
         <title>{}</title><link>{base}</link><description>{}</description>\
         <language>en</language><lastBuildDate>{last_build}</lastBuildDate>\
         {items}\
