@@ -146,6 +146,40 @@ pub fn generate_pagination_nav(current: usize, total: usize, section_url: &str) 
     format!("<nav class=\"pagination\">{nums}</nav>")
 }
 
+pub fn generate_related_articles(current: &PageInfo, all_pages: &[PageInfo]) -> String {
+    if current.meta.tags.is_empty() {
+        return String::new();
+    }
+    let mut scored: Vec<(usize, &PageInfo)> = all_pages
+        .iter()
+        .filter(|p| {
+            p.out_filename != "index.html"
+                && p.page_url != current.page_url
+                && p.meta.tags.iter().any(|t| current.meta.tags.contains(t))
+        })
+        .map(|p| {
+            let shared = p.meta.tags.iter().filter(|t| current.meta.tags.contains(t)).count();
+            (shared, p)
+        })
+        .collect();
+    scored.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.meta.date.cmp(&a.1.meta.date)));
+    scored.truncate(3);
+    if scored.is_empty() {
+        return String::new();
+    }
+    let items: String = scored
+        .iter()
+        .map(|(_, p)| {
+            let title = html_escape(p.meta.title.as_deref().unwrap_or(&p.out_filename));
+            let date = p.meta.date.as_deref()
+                .map(|d| format!(" - <span class=\"related__date\">({})</span>", format_date(d)))
+                .unwrap_or_default();
+            format!("<li><a href=\"{}\">{title}</a>{date}</li>", p.page_url)
+        })
+        .collect();
+    format!("<hr class=\"divider\" /><h3>Related Articles</h3><ul>{items}</ul>")
+}
+
 pub fn generate_sitemap(base_url: &str, urls: &[(String, Option<String>)]) -> String {
     let base = xml_escape(base_url.trim().trim_end_matches('/'));
     let entries = urls

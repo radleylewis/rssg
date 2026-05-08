@@ -3,12 +3,12 @@ use crate::{
     highlight::{convert_callouts, highlight_code_blocks, syntax_highlight_css, CODE_COPY_SCRIPT},
     images::{copy_static_optimized, rewrite_image_refs},
     render::{
-        apply_article_meta, generate_pagination_nav, generate_post_list, generate_rss,
-        generate_sitemap, generate_tag_nav, render_page, section_url_for_pages,
+        apply_article_meta, generate_pagination_nav, generate_post_list, generate_related_articles,
+        generate_rss, generate_sitemap, generate_tag_nav, render_page, section_url_for_pages,
     },
     utils::{
-        build_timestamp, copy_directory, current_year, estimate_read_time, format_date,
-        html_escape, path_to_url, read_all_files_recursive, slugify,
+        build_timestamp, copy_directory, current_year, estimate_read_time, extract_first_image_src,
+        format_date, html_escape, path_to_url, read_all_files_recursive, slugify,
     },
 };
 use pulldown_cmark::{html, Options, Parser};
@@ -200,11 +200,13 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             content = format!("<div class=\"post-header\">{dates_html}{read_time}{location}</div>\n{content}");
         }
 
-        let current_page_name = pages[i].relative_dir.file_name()
-            .and_then(|n| n.to_str())
+        let current_page_name = pages[i].relative_dir.components().next()
+            .and_then(|c| c.as_os_str().to_str())
             .unwrap_or("");
         let lang = pages[i].meta.language.as_deref().unwrap_or("en");
+        let first_image = extract_first_image_src(&content);
         let og_image = pages[i].meta.og_image.as_deref()
+            .or(first_image.as_deref())
             .or(config.og_image.as_deref())
             .map(|p| if p.starts_with("http") { p.to_string() } else { format!("{base}{p}") })
             .unwrap_or_default();
@@ -281,6 +283,11 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                 format!("dist/{}/{stem}", path_to_url(&pages[i].relative_dir))
             };
             fs::create_dir_all(&out_dir)?;
+            let related = generate_related_articles(&pages[i], &pages);
+            if !related.is_empty() {
+                content.push('\n');
+                content.push_str(&related);
+            }
             let rendered = render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &content, lang);
             let rendered = if let Some(published) = pages[i].meta.date.as_deref() {
                 apply_article_meta(&rendered, published, pages[i].meta.last_edited.as_deref(), &config.author)
@@ -326,7 +333,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                 fs::create_dir_all(&out_dir)?;
                 fs::write(
                     format!("{out_dir}/index.html"),
-                    render(&base_template, &page_title, &config.description, "", &page_full_url, "", "", &content, "en"),
+                    render(&base_template, &page_title, &config.description, "", &page_full_url, "", section, &content, "en"),
                 )?;
             }
         }
@@ -369,7 +376,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             fs::create_dir_all(&out_dir)?;
             fs::write(
                 format!("{out_dir}/index.html"),
-                render(&base_template, &page_title, &config.description, "", &page_full_url, "", "", &content, "en"),
+                render(&base_template, &page_title, &config.description, "", &page_full_url, "", &section_key, &content, "en"),
             )?;
             if page_num == 1 {
                 urls.push((page_tag_url, None));
