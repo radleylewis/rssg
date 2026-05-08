@@ -206,7 +206,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         let lang = pages[i].meta.language.as_deref().unwrap_or("en");
         let first_image = extract_first_image_src(&content);
         let og_image = pages[i].meta.og_image.as_deref()
-            .or(first_image.as_deref())
+            .or(first_image)
             .or(config.og_image.as_deref())
             .map(|p| if p.starts_with("http") { p.to_string() } else { format!("{base}{p}") })
             .unwrap_or_default();

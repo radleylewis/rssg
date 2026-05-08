@@ -23,13 +23,13 @@ pub fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-pub fn extract_first_image_src(html: &str) -> Option<String> {
+pub fn extract_first_image_src(html: &str) -> Option<&str> {
     let img_pos = html.find("<img")?;
     let after_img = &html[img_pos..];
     let src_pos = after_img.find("src=\"")?;
     let after_src = &after_img[src_pos + 5..];
     let end = after_src.find('"')?;
-    Some(after_src[..end].to_string())
+    Some(&after_src[..end])
 }
 
 pub fn slugify(s: &str) -> String {

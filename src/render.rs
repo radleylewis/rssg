@@ -152,14 +152,12 @@ pub fn generate_related_articles(current: &PageInfo, all_pages: &[PageInfo]) -> 
     }
     let mut scored: Vec<(usize, &PageInfo)> = all_pages
         .iter()
-        .filter(|p| {
-            p.out_filename != "index.html"
-                && p.page_url != current.page_url
-                && p.meta.tags.iter().any(|t| current.meta.tags.contains(t))
-        })
-        .map(|p| {
-            let shared = p.meta.tags.iter().filter(|t| current.meta.tags.contains(t)).count();
-            (shared, p)
+        .filter_map(|p| {
+            if p.out_filename == "index.html" || p.page_url == current.page_url {
+                return None;
+            }
+            let shared = p.meta.tags.iter().filter(|t| current.meta.tags.contains(*t)).count();
+            if shared > 0 { Some((shared, p)) } else { None }
         })
         .collect();
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.meta.date.cmp(&a.1.meta.date)));
