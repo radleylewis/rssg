@@ -172,7 +172,7 @@ pub fn generate_related_articles(current: &PageInfo, all_pages: &[PageInfo]) -> 
         .map(|(_, p)| {
             let title = html_escape(p.meta.title.as_deref().unwrap_or(&p.out_filename));
             let date = p.meta.date.as_deref()
-                .map(|d| format!(" - <span class=\"related__date\">({})</span>", format_date(d)))
+                .map(|d| format!(" - <span class=\"related__date\">{}</span>", format_date(d)))
                 .unwrap_or_default();
             format!("<li><a href=\"{}\">{title}</a>{date}</li>", p.page_url)
         })
