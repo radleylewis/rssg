@@ -7,7 +7,7 @@
 
 rssg is not a replacement for [Hugo](https://gohugo.io) or [Zola](https://www.getzola.org). Those tools have their use case. If you need a templating engine, a theme ecosystem, or a large community, use them.
 
-rssg is for developers who want to own their HTML and CSS completely - no templating language to learn, no theme to override, no abstraction between you and your output. You write one HTML file and one CSS file. rssg handles the rest.
+rssg is for anyone who wants to own their HTML and CSS completely - no templating language to learn, no theme to override, no abstraction between you and your output. You write one HTML file and one CSS file. rssg handles the rest.
 
 **What rssg does:**
 
@@ -63,7 +63,7 @@ You will be prompted for a filename, file type (`md` or `html`), title, descript
 ```markdown
 ---
 title: Why the Euro makes no sense
-description: An economic takedown of the most pantsuit wearing currency
+description: An economic takedown of the most overengineered currency
 tags: economics, money
 date: 2027-01-15
 location: Beijing, China
@@ -77,7 +77,7 @@ draft: true
 ```html
 <!--
 title: Why the Euro makes no sense
-description: An economic takedown of the most pantsuit wearing currency
+description: An economic takedown of the most overengineered currency
 tags: economics, money
 date: 2027-01-15
 location: Beijing, China
