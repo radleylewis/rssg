@@ -23,6 +23,14 @@ pub fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
+pub fn json_escape(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
 pub fn extract_first_image_src(html: &str) -> Option<&str> {
     let img_pos = html.find("<img")?;
     let after_img = &html[img_pos..];

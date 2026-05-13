@@ -41,8 +41,7 @@ fn sanitise_string(page_name: &str) -> String {
     page_name
         .trim()
         .to_lowercase()
-        .replace(" ", "_")
-        .to_string()
+        .replace(' ', "-")
 }
 
 fn generate_navbar_list(navbar_items: &str) -> String {
@@ -179,6 +178,8 @@ pub fn init_project() -> Result<(), std::io::Error> {
             <meta property=\"og:url\" content=\"{{page_url}}\" />
             <meta property=\"og:type\" content=\"website\" />
             <meta property=\"og:image\" content=\"{{og_image}}\" />
+            <meta property=\"og:site_name\" content=\"{{site_name}}\" />
+            <meta property=\"og:locale\" content=\"{{locale}}\" />
             <meta name=\"twitter:card\" content=\"summary_large_image\" />
             <meta name=\"twitter:title\" content=\"{{title}}\" />
             <meta name=\"twitter:description\" content=\"{{description}}\" />
@@ -225,9 +226,9 @@ mod tests {
 
     #[test]
     fn test_sanitise_string() {
-        assert_eq!(sanitise_string("My Page "), "my_page");
-        assert_eq!(sanitise_string("  Another Page"), "another_page");
-        assert_eq!(sanitise_string("Already_good"), "already_good");
+        assert_eq!(sanitise_string("My Page "), "my-page");
+        assert_eq!(sanitise_string("  Another Page"), "another-page");
+        assert_eq!(sanitise_string("Already-good"), "already-good");
     }
 
     #[test]

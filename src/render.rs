@@ -1,7 +1,59 @@
 use crate::frontmatter::{PageInfo, SiteConfig};
 use crate::highlight::convert_callouts;
-use crate::utils::{format_date, format_rfc822, html_escape, slugify, xml_escape};
+use crate::utils::{format_date, format_rfc822, html_escape, json_escape, slugify, xml_escape};
 use pulldown_cmark::{html as cm_html, Options, Parser};
+
+pub fn generate_breadcrumb_json_ld(crumbs: &[(&str, &str)]) -> String {
+    if crumbs.len() < 2 {
+        return String::new();
+    }
+    let entries: String = crumbs
+        .iter()
+        .enumerate()
+        .map(|(i, (name, url))| {
+            format!(
+                "{{\"@type\":\"ListItem\",\"position\":{},\"name\":\"{}\",\"item\":\"{}\"}}",
+                i + 1,
+                json_escape(name),
+                json_escape(url)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "<script type=\"application/ld+json\">{{\"@context\":\"https://schema.org\",\
+        \"@type\":\"BreadcrumbList\",\"itemListElement\":[{}]}}</script>",
+        entries
+    )
+}
+
+pub fn generate_article_json_ld(
+    title: &str,
+    description: &str,
+    url: &str,
+    image: &str,
+    published: &str,
+    modified: Option<&str>,
+    author: &str,
+) -> String {
+    let modified_field = modified
+        .filter(|&m| m != published)
+        .map(|m| format!(",\"dateModified\":\"{}\"", json_escape(m)))
+        .unwrap_or_default();
+    let image_field = if !image.is_empty() {
+        format!(",\"image\":\"{}\"", json_escape(image))
+    } else {
+        String::new()
+    };
+    format!(
+        "<script type=\"application/ld+json\">{{\"@context\":\"https://schema.org\",\
+        \"@type\":\"BlogPosting\",\"headline\":\"{}\",\"description\":\"{}\",\
+        \"url\":\"{}\",\"datePublished\":\"{}\"{}{},\
+        \"author\":{{\"@type\":\"Person\",\"name\":\"{}\"}}}}</script>",
+        json_escape(title), json_escape(description), json_escape(url),
+        json_escape(published), modified_field, image_field, json_escape(author)
+    )
+}
 
 pub fn apply_article_meta(html: &str, published: &str, modified: Option<&str>, author: &str) -> String {
     let article_tags = format!(
@@ -10,6 +62,7 @@ pub fn apply_article_meta(html: &str, published: &str, modified: Option<&str>, a
         {modified_tag}\
         <meta property=\"article:author\" content=\"{author}\" />",
         modified_tag = modified
+            .filter(|&m| m != published)
             .map(|m| format!("<meta property=\"article:modified_time\" content=\"{m}\" />\n"))
             .unwrap_or_default(),
     );

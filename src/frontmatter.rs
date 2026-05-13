@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 fn default_posts_per_page() -> usize { 10 }
 fn default_webp_quality() -> u8 { 80 }
+fn default_locale() -> String { "en_US".to_string() }
 
 #[derive(Deserialize)]
 pub struct SiteConfig {
@@ -20,6 +21,8 @@ pub struct SiteConfig {
     pub max_image_width: Option<u32>,
     #[serde(default)]
     pub og_image: Option<String>,
+    #[serde(default = "default_locale")]
+    pub locale: String,
 }
 
 #[derive(Default)]

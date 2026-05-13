@@ -3,12 +3,13 @@ use crate::{
     highlight::{convert_callouts, highlight_code_blocks, syntax_highlight_css, CODE_COPY_SCRIPT},
     images::{copy_static_optimized, rewrite_image_refs},
     render::{
-        apply_article_meta, generate_pagination_nav, generate_post_list, generate_related_articles,
-        generate_rss, generate_sitemap, generate_tag_nav, render_page, section_url_for_pages,
+        apply_article_meta, generate_article_json_ld, generate_breadcrumb_json_ld,
+        generate_pagination_nav, generate_post_list, generate_related_articles, generate_rss,
+        generate_sitemap, generate_tag_nav, render_page, section_url_for_pages,
     },
     utils::{
         build_timestamp, copy_directory, current_year, estimate_read_time, extract_first_image_src,
-        format_date, html_escape, path_to_url, read_all_files_recursive, slugify,
+        format_date, html_escape, json_escape, path_to_url, read_all_files_recursive, slugify,
     },
 };
 use pulldown_cmark::{html, Options, Parser};
@@ -46,6 +47,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                 &mut converted_images,
                 "",
             )?;
+            println!("images: {} converted to WebP", converted_images.len());
         } else {
             copy_directory(Path::new("./static"), Path::new("./dist/static"))?;
         }
@@ -55,13 +57,22 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
     let ts = ThemeSet::load_defaults();
     let highlight_css = syntax_highlight_css(&ts);
 
+    let website_json_ld = format!(
+        "<script type=\"application/ld+json\">{{\"@context\":\"https://schema.org\",\
+        \"@type\":\"WebSite\",\"name\":\"{}\",\"url\":\"{}\",\
+        \"author\":{{\"@type\":\"Person\",\"name\":\"{}\"}}}}</script>",
+        json_escape(&config.title), json_escape(base), json_escape(&config.author)
+    );
+
     let base_template = {
         let t = fs::read_to_string("templates/template.html")?
             .replace("{{refresh_cache}}", &build_timestamp().to_string())
             .replace("{{year}}", &current_year().to_string())
             .replace("{{author}}", &html_escape(&config.author))
+            .replace("{{site_name}}", &html_escape(&config.title))
+            .replace("{{locale}}", &config.locale)
             .replace("{{base_url}}", base)
-            .replace("</head>", &format!("{highlight_css}</head>"))
+            .replace("</head>", &format!("{highlight_css}{website_json_ld}</head>"))
             .replace("</body>", &format!("{CODE_COPY_SCRIPT}</body>"));
         if converted_images.is_empty() { t } else { rewrite_image_refs(&t, &converted_images) }
     };
@@ -170,10 +181,11 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         .into_par_iter()
         .map(|i| -> io::Result<Vec<(String, Option<String>)>> {
             let mut local_urls: Vec<(String, Option<String>)> = Vec::new();
-            let title = html_escape(pages[i].meta.title.as_deref().unwrap_or(&config.title));
-            let description = html_escape(
-                pages[i].meta.description.as_deref().unwrap_or(&config.description),
-            );
+            let home_url = format!("{base}/");
+            let raw_title = pages[i].meta.title.as_deref().unwrap_or(&config.title);
+            let raw_description = pages[i].meta.description.as_deref().unwrap_or(&config.description);
+            let title = html_escape(raw_title);
+            let description = html_escape(raw_description);
             let keywords = html_escape(&pages[i].meta.tags.join(", "));
 
             let mut content = if pages[i].is_md {
@@ -254,9 +266,24 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
 
                 let out_dir = format!("dist/{}", path_to_url(&pages[i].relative_dir));
                 fs::create_dir_all(&out_dir)?;
+                let section_breadcrumb = if !pages[i].relative_dir.as_os_str().is_empty() {
+                    Some(generate_breadcrumb_json_ld(&[
+                        ("Home", &home_url),
+                        (current_page_name, &pages[i].full_url),
+                    ]))
+                } else {
+                    None
+                };
+                let inject_breadcrumb = |html: String| -> String {
+                    if let Some(ref crumb) = section_breadcrumb {
+                        html.replace("</head>", &format!("{crumb}</head>"))
+                    } else {
+                        html
+                    }
+                };
                 fs::write(
                     format!("{out_dir}/index.html"),
-                    render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &page1_content, lang),
+                    inject_breadcrumb(render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &page1_content, lang)),
                 )?;
                 local_urls.push((pages[i].page_url.clone(), None));
 
@@ -277,7 +304,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                     fs::create_dir_all(&page_out_dir)?;
                     fs::write(
                         format!("{page_out_dir}/index.html"),
-                        render(&base_template, &page_title, &description, &keywords, &full_url, &og_image, current_page_name, &page_content, lang),
+                        inject_breadcrumb(render(&base_template, &page_title, &description, &keywords, &full_url, &og_image, current_page_name, &page_content, lang)),
                     )?;
                 }
             } else {
@@ -294,8 +321,26 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                     content.push_str(&related);
                 }
                 let rendered = render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &content, lang);
+                let section_url_str = (!pages[i].relative_dir.as_os_str().is_empty())
+                    .then(|| format!("{base}/{current_page_name}/"));
+                let crumbs: Vec<(&str, &str)> = if let Some(ref surl) = section_url_str {
+                    vec![("Home", &home_url), (current_page_name, surl), (raw_title, &pages[i].full_url)]
+                } else {
+                    vec![("Home", &home_url), (raw_title, &pages[i].full_url)]
+                };
+                let rendered = rendered.replace("</head>", &format!("{}</head>", generate_breadcrumb_json_ld(&crumbs)));
                 let rendered = if let Some(published) = pages[i].meta.date.as_deref() {
-                    apply_article_meta(&rendered, published, pages[i].meta.last_edited.as_deref(), &config.author)
+                    let rendered = apply_article_meta(&rendered, published, pages[i].meta.last_edited.as_deref(), &config.author);
+                    let article_json_ld = generate_article_json_ld(
+                        raw_title,
+                        raw_description,
+                        &pages[i].full_url,
+                        &og_image,
+                        published,
+                        pages[i].meta.last_edited.as_deref(),
+                        &config.author,
+                    );
+                    rendered.replace("</head>", &format!("{article_json_ld}</head>"))
                 } else {
                     rendered
                 };
@@ -327,6 +372,14 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         let section_tags = section_all_tags.get(*section).cloned().unwrap_or_default();
         let tag_nav = generate_tag_nav(&section_tags, Some(tag_slug), &section_url, &tag_base_url);
         let total_tag_pages = tagged_pages.len().div_ceil(posts_per_page);
+        let home_url = format!("{base}/");
+        let section_full_url = format!("{base}{section_url}");
+        let tag_full_url = format!("{base}{tag_url}");
+        let breadcrumb = generate_breadcrumb_json_ld(&[
+            ("Home", &home_url),
+            (section, &section_full_url),
+            (tag_slug, &tag_full_url),
+        ]);
 
         for page_num in 1..=total_tag_pages {
             let chunk: Vec<&PageInfo> = tagged_pages.iter().copied()
@@ -347,9 +400,10 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                 format!("dist/{section}/tags/{tag_slug}/{page_num}")
             };
             fs::create_dir_all(&out_dir)?;
+            let rendered = render(&base_template, &page_title, &config.description, "", &page_full_url, "", section, &content, "en");
             fs::write(
                 format!("{out_dir}/index.html"),
-                render(&base_template, &page_title, &config.description, "", &page_full_url, "", section, &content, "en"),
+                rendered.replace("</head>", &format!("{breadcrumb}</head>")),
             )?;
         }
         Ok(())
@@ -372,6 +426,18 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
             let tag_base_url = format!("/{section_key}/tags/");
             let tag_nav = generate_tag_nav(&section_tags, Some(tag_slug), &section_url, &tag_base_url);
             let total_tag_pages = tagged_pages.len().div_ceil(posts_per_page);
+            let home_url = format!("{base}/");
+            let tag_full_url = format!("{base}{tag_url}");
+            let breadcrumb = if section_key.is_empty() {
+                generate_breadcrumb_json_ld(&[("Home", &home_url), (tag_slug, &tag_full_url)])
+            } else {
+                let section_full_url = format!("{base}{section_url}");
+                generate_breadcrumb_json_ld(&[
+                    ("Home", &home_url),
+                    (&section_key, &section_full_url),
+                    (tag_slug, &tag_full_url),
+                ])
+            };
 
             for page_num in 1..=total_tag_pages {
                 let chunk: Vec<&PageInfo> = tagged_pages.iter().copied()
@@ -392,9 +458,10 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                     format!("dist/tags/{tag_slug}/{page_num}")
                 };
                 fs::create_dir_all(&out_dir)?;
+                let rendered = render(&base_template, &page_title, &config.description, "", &page_full_url, "", &section_key, &content, "en");
                 fs::write(
                     format!("{out_dir}/index.html"),
-                    render(&base_template, &page_title, &config.description, "", &page_full_url, "", &section_key, &content, "en"),
+                    rendered.replace("</head>", &format!("{breadcrumb}</head>")),
                 )?;
             }
             Ok((tag_url, None))

@@ -25,6 +25,8 @@ fn mime_type(path: &Path) -> &'static str {
         Some("js") => "application/javascript",
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
         Some("svg") => "image/svg+xml",
         Some("xml") => "application/xml",
         Some("txt") => "text/plain",
