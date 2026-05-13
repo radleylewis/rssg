@@ -25,7 +25,7 @@ pub struct SiteConfig {
     pub locale: String,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct PageMeta {
     pub title: Option<String>,
     pub description: Option<String>,
@@ -38,6 +38,7 @@ pub struct PageMeta {
     pub draft: bool,
 }
 
+#[derive(Clone)]
 pub struct PageInfo {
     pub relative_dir: PathBuf,
     pub out_filename: String,
@@ -74,6 +75,97 @@ fn parse_meta_lines(text: &str) -> PageMeta {
         }
     }
     meta
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_markdown_front_matter() {
+        let content = "---\ntitle: My Post\ndescription: A test\ntags: rust, programming\ndate: 2024-01-15\n---\n\n# Body";
+        let (meta, body) = parse_front_matter(content);
+        assert_eq!(meta.title, Some("My Post".to_string()));
+        assert_eq!(meta.description, Some("A test".to_string()));
+        assert_eq!(meta.tags, vec!["rust", "programming"]);
+        assert_eq!(meta.date, Some("2024-01-15".to_string()));
+        assert_eq!(body, "# Body");
+    }
+
+    #[test]
+    fn test_parse_html_front_matter() {
+        let content = "<!--\ntitle: My Page\ndescription: A page\ndraft: true\n-->\n\n<h1>Hello</h1>";
+        let (meta, body) = parse_front_matter(content);
+        assert_eq!(meta.title, Some("My Page".to_string()));
+        assert_eq!(meta.description, Some("A page".to_string()));
+        assert!(meta.draft);
+        assert_eq!(body, "<h1>Hello</h1>");
+    }
+
+    #[test]
+    fn test_parse_no_front_matter() {
+        let content = "# Just content\nNo front matter.";
+        let (meta, body) = parse_front_matter(content);
+        assert!(meta.title.is_none());
+        assert!(meta.description.is_none());
+        assert!(meta.tags.is_empty());
+        assert!(!meta.draft);
+        assert_eq!(body, content);
+    }
+
+    #[test]
+    fn test_draft_flag() {
+        let (meta, _) = parse_front_matter("---\ndraft: true\n---\n");
+        assert!(meta.draft);
+        let (meta, _) = parse_front_matter("---\ndraft: false\n---\n");
+        assert!(!meta.draft);
+        let (meta, _) = parse_front_matter("---\ndraft: True\n---\n");
+        assert!(meta.draft); // case-insensitive
+    }
+
+    #[test]
+    fn test_tags_are_lowercased_and_trimmed() {
+        let (meta, _) = parse_front_matter("---\ntags: Rust, Web Dev , PYTHON\n---\n");
+        assert_eq!(meta.tags, vec!["rust", "web dev", "python"]);
+    }
+
+    #[test]
+    fn test_empty_tags_filtered() {
+        let (meta, _) = parse_front_matter("---\ntags: rust,,, web\n---\n");
+        assert_eq!(meta.tags, vec!["rust", "web"]);
+    }
+
+    #[test]
+    fn test_last_edited_and_location() {
+        let content = "---\ndate: 2024-01-01\nlast_edited: 2024-06-15\nlocation: Hong Kong\n---\n";
+        let (meta, _) = parse_front_matter(content);
+        assert_eq!(meta.date, Some("2024-01-01".to_string()));
+        assert_eq!(meta.last_edited, Some("2024-06-15".to_string()));
+        assert_eq!(meta.location, Some("Hong Kong".to_string()));
+    }
+
+    #[test]
+    fn test_language_and_og_image() {
+        let content = "---\nlanguage: zh\nog_image: /static/cover.jpg\n---\n";
+        let (meta, _) = parse_front_matter(content);
+        assert_eq!(meta.language, Some("zh".to_string()));
+        assert_eq!(meta.og_image, Some("/static/cover.jpg".to_string()));
+    }
+
+    #[test]
+    fn test_body_leading_whitespace_stripped() {
+        let content = "---\ntitle: Test\n---\n\n\n# Heading";
+        let (_, body) = parse_front_matter(content);
+        assert_eq!(body, "# Heading");
+    }
+
+    #[test]
+    fn test_unknown_fields_ignored() {
+        let content = "---\ntitle: Test\nunknown_field: value\nanother: 123\n---\nbody";
+        let (meta, body) = parse_front_matter(content);
+        assert_eq!(meta.title, Some("Test".to_string()));
+        assert_eq!(body, "body");
+    }
 }
 
 pub fn parse_front_matter(content: &str) -> (PageMeta, String) {

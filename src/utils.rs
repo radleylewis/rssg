@@ -120,6 +120,136 @@ pub fn copy_directory(src: &Path, dest: &Path) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_html_escape() {
+        assert_eq!(html_escape("hello"), "hello");
+        assert_eq!(html_escape("a & b"), "a &amp; b");
+        assert_eq!(html_escape("<script>"), "&lt;script&gt;");
+        assert_eq!(html_escape("\"quoted\""), "&quot;quoted&quot;");
+        assert_eq!(html_escape("a & <b> \"c\""), "a &amp; &lt;b&gt; &quot;c&quot;");
+    }
+
+    #[test]
+    fn test_html_decode() {
+        assert_eq!(html_decode("hello"), "hello");
+        assert_eq!(html_decode("&amp;"), "&");
+        assert_eq!(html_decode("&lt;p&gt;"), "<p>");
+        assert_eq!(html_decode("&quot;hi&quot;"), "\"hi\"");
+        assert_eq!(html_decode("&#39;"), "'");
+        assert_eq!(html_decode("&lt;b&gt;bold&lt;/b&gt;"), "<b>bold</b>");
+    }
+
+    #[test]
+    fn test_xml_escape() {
+        assert_eq!(xml_escape("hello"), "hello");
+        assert_eq!(xml_escape("a & b"), "a &amp; b");
+        assert_eq!(xml_escape("<tag>"), "&lt;tag&gt;");
+        assert_eq!(xml_escape("a < b & c > d"), "a &lt; b &amp; c &gt; d");
+    }
+
+    #[test]
+    fn test_json_escape() {
+        assert_eq!(json_escape("hello"), "hello");
+        assert_eq!(json_escape("say \"hi\""), "say \\\"hi\\\"");
+        assert_eq!(json_escape("back\\slash"), "back\\\\slash");
+        assert_eq!(json_escape("new\nline"), "new\\nline");
+        assert_eq!(json_escape("carriage\rreturn"), "carriage\\rreturn");
+        assert_eq!(json_escape("tab\there"), "tab\\there");
+        assert_eq!(json_escape(""), "");
+    }
+
+    #[test]
+    fn test_slugify() {
+        assert_eq!(slugify("Hello World"), "hello-world");
+        assert_eq!(slugify("  rust  "), "rust");
+        assert_eq!(slugify("Already-slug"), "already-slug");
+        assert_eq!(slugify("UPPER CASE"), "upper-case");
+        assert_eq!(slugify("multiple   spaces"), "multiple---spaces");
+    }
+
+    #[test]
+    fn test_format_date_valid() {
+        assert_eq!(format_date("2024-01-15"), "15 January 2024");
+        assert_eq!(format_date("2024-12-01"), "1 December 2024");
+        assert_eq!(format_date("1999-06-30"), "30 June 1999");
+    }
+
+    #[test]
+    fn test_format_date_invalid() {
+        assert_eq!(format_date("not-a-date"), "not-a-date");
+        assert_eq!(format_date("2024-00-01"), "2024-00-01"); // month 0
+        assert_eq!(format_date("2024-13-01"), "2024-13-01"); // month 13
+        assert_eq!(format_date("2024-01-00"), "2024-01-00"); // day 0
+        assert_eq!(format_date("2024-1"), "2024-1");         // wrong format
+    }
+
+    #[test]
+    fn test_format_rfc822_known_day() {
+        // 2024-01-15 is a Monday
+        let result = format_rfc822("2024-01-15");
+        assert!(result.starts_with("Mon,"), "expected Mon, got: {result}");
+        assert!(result.contains("15 Jan 2024"));
+        // 2024-07-04 is a Thursday
+        let result = format_rfc822("2024-07-04");
+        assert!(result.starts_with("Thu,"), "expected Thu, got: {result}");
+    }
+
+    #[test]
+    fn test_format_rfc822_invalid() {
+        assert_eq!(format_rfc822("not-a-date"), "not-a-date");
+        assert_eq!(format_rfc822("2024-00-01"), "2024-00-01");
+        assert_eq!(format_rfc822("2024-13-01"), "2024-13-01");
+    }
+
+    #[test]
+    fn test_estimate_read_time() {
+        assert_eq!(estimate_read_time(""), 1); // min 1
+        assert_eq!(estimate_read_time(&"word ".repeat(100)), 1);
+        assert_eq!(estimate_read_time(&"word ".repeat(200)), 1);
+        assert_eq!(estimate_read_time(&"word ".repeat(201)), 2);
+        assert_eq!(estimate_read_time(&"word ".repeat(400)), 2);
+        assert_eq!(estimate_read_time(&"word ".repeat(401)), 3);
+    }
+
+    #[test]
+    fn test_extract_first_image_src_found() {
+        assert_eq!(
+            extract_first_image_src(r#"<img src="/static/photo.jpg" alt="test" />"#),
+            Some("/static/photo.jpg")
+        );
+        assert_eq!(
+            extract_first_image_src(r#"<p>text</p><img src="/second.jpg" />"#),
+            Some("/second.jpg")
+        );
+    }
+
+    #[test]
+    fn test_extract_first_image_src_multiple_returns_first() {
+        assert_eq!(
+            extract_first_image_src(r#"<img src="/first.jpg" /><img src="/second.jpg" />"#),
+            Some("/first.jpg")
+        );
+    }
+
+    #[test]
+    fn test_extract_first_image_src_not_found() {
+        assert_eq!(extract_first_image_src("<p>no images here</p>"), None);
+        assert_eq!(extract_first_image_src(""), None);
+    }
+
+    #[test]
+    fn test_path_to_url() {
+        assert_eq!(path_to_url(&PathBuf::from("writing/my-post")), "writing/my-post");
+        assert_eq!(path_to_url(&PathBuf::from("a/b/c")), "a/b/c");
+        assert_eq!(path_to_url(&PathBuf::from("")), "");
+    }
+}
+
 pub fn read_all_files_recursive(
     dir: &Path,
     files: &mut Vec<DirEntry>,

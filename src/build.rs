@@ -4,8 +4,8 @@ use crate::{
     images::{copy_static_optimized, rewrite_image_refs},
     render::{
         apply_article_meta, generate_article_json_ld, generate_breadcrumb_json_ld,
-        generate_pagination_nav, generate_post_list, generate_related_articles, generate_rss,
-        generate_sitemap, generate_tag_nav, render_page, section_url_for_pages,
+        generate_pagination_nav, generate_post_list, generate_related_articles, generate_robots_txt,
+        generate_rss, generate_sitemap, generate_tag_nav, render_page, section_url_for_pages,
     },
     utils::{
         build_timestamp, copy_directory, current_year, estimate_read_time, extract_first_image_src,
@@ -16,6 +16,13 @@ use pulldown_cmark::{html, Options, Parser};
 use rayon::prelude::*;
 use std::{collections::HashMap, fs, io, path::{Path, PathBuf}};
 use syntect::highlighting::ThemeSet;
+
+fn section_lastmod(siblings: &[&PageInfo]) -> Option<String> {
+    siblings.iter()
+        .filter_map(|p| p.meta.last_edited.as_deref().or(p.meta.date.as_deref()))
+        .max()
+        .map(|s| s.to_string())
+}
 
 fn convert_md_to_html(md_content: &str) -> String {
     let opts = Options::ENABLE_TABLES
@@ -285,7 +292,7 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                     format!("{out_dir}/index.html"),
                     inject_breadcrumb(render(&base_template, &title, &description, &keywords, &pages[i].full_url, &og_image, current_page_name, &page1_content, lang)),
                 )?;
-                local_urls.push((pages[i].page_url.clone(), None));
+                local_urls.push((pages[i].page_url.clone(), section_lastmod(&siblings)));
 
                 for page_num in 2..=total_pages {
                     let chunk: Vec<&PageInfo> = siblings.iter().copied()
@@ -483,10 +490,64 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
         render(&not_found_template, "404 - Page Not Found", "The page you are looking for does not exist.", "", "", "", "", "<h1>404</h1><p>Page not found.</p>", "en"),
     )?;
 
-    fs::write(
-        "dist/robots.txt",
-        format!("User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n"),
-    )?;
+    fs::write("dist/robots.txt", generate_robots_txt(&config.base_url))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontmatter::{PageInfo, PageMeta};
+    use std::path::PathBuf;
+
+    fn make_page(date: Option<&str>, last_edited: Option<&str>) -> PageInfo {
+        PageInfo {
+            relative_dir: PathBuf::new(),
+            out_filename: "post.html".to_string(),
+            page_url: "/post/".to_string(),
+            full_url: "https://example.com/post/".to_string(),
+            meta: PageMeta {
+                date: date.map(|s| s.to_string()),
+                last_edited: last_edited.map(|s| s.to_string()),
+                ..Default::default()
+            },
+            body: String::new(),
+            is_md: false,
+        }
+    }
+
+    #[test]
+    fn test_section_lastmod_uses_most_recent_date() {
+        let p1 = make_page(Some("2024-01-01"), None);
+        let p2 = make_page(Some("2024-06-01"), None);
+        let p3 = make_page(Some("2024-03-15"), None);
+        assert_eq!(section_lastmod(&[&p1, &p2, &p3]), Some("2024-06-01".to_string()));
+    }
+
+    #[test]
+    fn test_section_lastmod_prefers_last_edited_over_date() {
+        let p1 = make_page(Some("2024-01-01"), Some("2024-12-01"));
+        let p2 = make_page(Some("2024-06-01"), None);
+        assert_eq!(section_lastmod(&[&p1, &p2]), Some("2024-12-01".to_string()));
+    }
+
+    #[test]
+    fn test_section_lastmod_empty_siblings() {
+        assert_eq!(section_lastmod(&[]), None);
+    }
+
+    #[test]
+    fn test_section_lastmod_pages_with_no_dates() {
+        let p1 = make_page(None, None);
+        let p2 = make_page(None, None);
+        assert_eq!(section_lastmod(&[&p1, &p2]), None);
+    }
+
+    #[test]
+    fn test_section_lastmod_mixed_dated_and_undated() {
+        let dated = make_page(Some("2024-05-01"), None);
+        let undated = make_page(None, None);
+        assert_eq!(section_lastmod(&[&dated, &undated]), Some("2024-05-01".to_string()));
+    }
 }

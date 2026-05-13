@@ -5,17 +5,33 @@
 
 ## Introduction
 
-Write your site in Markdown or HTML. rssg includes:
+rssg is not a replacement for [Hugo](https://gohugo.io) or [Zola](https://www.getzola.org). Those tools have their use case. If you need a templating engine, a theme ecosystem, or a large community, use them.
 
-- Dark/light theme toggle (CSS only, no JavaScript)
-- Code block language labels and copy button (minimal JavaScript, clipboard API only)
-- Support for Markdown and HTML pages
-- Front matter for per-page SEO metadata
-- Build-time syntax highlighting for code blocks
-- Auto-generated post lists for section index pages
-- RSS feed generation
-- Sitemap and robots.txt generation
-- Local dev server with hot reload
+rssg is for developers who want to own their HTML and CSS completely - no templating language to learn, no theme to override, no abstraction between you and your output. You write one HTML file and one CSS file. rssg handles the rest.
+
+**What rssg does:**
+
+- Compiles to a single binary with no runtime dependencies
+- Builds pages in parallel - fast regardless of site size
+- Converts Markdown and HTML pages to a static site
+- Generates post lists, pagination, tag pages, related articles, and section indexes automatically
+- Produces an RSS feed, sitemap, and `robots.txt` with no configuration
+- Injects structured data (JSON-LD) for WebSite, BlogPosting, and BreadcrumbList schemas on every page
+- Outputs full Open Graph and Twitter card meta tags, canonical URLs, and `article:published_time` on dated posts
+- Converts raster images to WebP at build time, rewrites all references, and serves the correct MIME types in dev
+- Highlights code blocks at build time with no client-side JavaScript
+- Renders Obsidian-style callout blocks (`[!NOTE]`, `[!WARNING]`, etc.) from Markdown blockquotes
+- Displays estimated reading time and location on dated posts
+- Ships a CSS-only dark/light theme toggle
+- Uses no JavaScript frameworks, no tracking, no external dependencies in the browser - only a clipboard API call for code block copying and a fetch call for live reload in dev
+
+**What rssg does not do:**
+
+- Templating logic (conditionals, loops, partials) - your template is plain HTML with `{{placeholders}}`
+- Themes or plugins
+- Asset pipelines (no Sass, no bundling)
+
+If you are comfortable writing HTML and CSS and want a fast, transparent build with strong SEO defaults out of the box, rssg is designed for you.
 
 ## Usage
 
@@ -82,6 +98,7 @@ draft: true
 | `last_edited` | Last edited date in `YYYY-MM-DD` format (shown in post header if different from `date`, used as sitemap `<lastmod>`) |
 | `location` | Where the post was written (displayed in the post header) |
 | `language` | BCP 47 language code for the page (sets `lang` on `<html>`, defaults to `en`) |
+| `og_image` | Override the default OG image for this page |
 | `draft` | Set to `true` to exclude the page from build output |
 
 > **Tip:** For long descriptions, edit `rssg.toml` directly rather than typing in the prompt.
@@ -105,29 +122,35 @@ Serves the `dist/` directory at `http://localhost:8080` (default). Watches for f
 
 ## Configuration
 
-`rssg.toml` in your project root holds site-wide defaults. Per-page front matter overrides these values.
+`rssg.toml` in your project root holds site-wide defaults. Per-page front matter overrides these where applicable.
 
 ```toml
 title = "My Site"
 base_url = "https://example.com"
 author = "Your Name"
 description = "Site description"
+locale = "en_US"
 posts_per_page = 10
 
 # Image optimisation (optional)
 optimize_images = true
 max_image_width = 1200
+webp_quality = 80
+og_image = "/static/preview.jpg"
 ```
 
 | Field | Default | Description |
 |---|---|---|
-| `title` | required | Site title used in `<title>`, OG tags, and RSS |
+| `title` | required | Site title used in `<title>`, OG tags, RSS, and JSON-LD |
 | `base_url` | required | Canonical base URL (no trailing slash) |
-| `author` | required | Author name used in footer and meta tags |
+| `author` | required | Author name used in footer, meta tags, and JSON-LD |
 | `description` | required | Site-wide default description for meta and RSS |
+| `locale` | `en_US` | OG locale tag (e.g. `en_GB`, `fr_FR`) |
 | `posts_per_page` | `10` | Number of posts per paginated listing page |
 | `optimize_images` | `false` | Convert raster images in `static/` to WebP during build |
 | `max_image_width` | none | Resize images wider than this (pixels) before converting |
+| `webp_quality` | `80` | WebP encoding quality (0-100) |
+| `og_image` | none | Default OG image for pages without one (relative path or absolute URL) |
 
 ## Post lists
 

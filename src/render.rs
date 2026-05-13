@@ -233,6 +233,11 @@ pub fn generate_related_articles(current: &PageInfo, all_pages: &[PageInfo]) -> 
     format!("<hr class=\"divider\" /><h3>Related Articles</h3><ul>{items}</ul>")
 }
 
+pub fn generate_robots_txt(base_url: &str) -> String {
+    let base = base_url.trim().trim_end_matches('/');
+    format!("User-agent: *\nAllow: /\nSitemap: {base}/sitemap.xml\n")
+}
+
 pub fn generate_sitemap(base_url: &str, urls: &[(String, Option<String>)]) -> String {
     let base = xml_escape(base_url.trim().trim_end_matches('/'));
     let entries = urls
@@ -249,6 +254,357 @@ pub fn generate_sitemap(base_url: &str, urls: &[(String, Option<String>)]) -> St
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n{entries}\n</urlset>"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::frontmatter::{PageInfo, PageMeta, SiteConfig};
+    use std::path::PathBuf;
+
+    fn make_config() -> SiteConfig {
+        SiteConfig {
+            title: "Test Site".to_string(),
+            base_url: "https://example.com".to_string(),
+            author: "Test Author".to_string(),
+            description: "Test description".to_string(),
+            posts_per_page: 10,
+            optimize_images: false,
+            webp_quality: 80,
+            max_image_width: None,
+            og_image: None,
+            locale: "en_US".to_string(),
+        }
+    }
+
+    fn make_page(title: &str, url: &str, date: Option<&str>, tags: &[&str]) -> PageInfo {
+        PageInfo {
+            relative_dir: PathBuf::new(),
+            out_filename: format!("{}.html", url.trim_matches('/')),
+            page_url: url.to_string(),
+            full_url: format!("https://example.com{url}"),
+            meta: PageMeta {
+                title: Some(title.to_string()),
+                date: date.map(|s| s.to_string()),
+                tags: tags.iter().map(|t| t.to_string()).collect(),
+                ..Default::default()
+            },
+            body: format!("Body of {title}"),
+            is_md: false,
+        }
+    }
+
+    // --- breadcrumb ---
+
+    #[test]
+    fn test_breadcrumb_basic() {
+        let result = generate_breadcrumb_json_ld(&[
+            ("Home", "https://example.com/"),
+            ("Writing", "https://example.com/writing/"),
+        ]);
+        assert!(result.contains("BreadcrumbList"));
+        assert!(result.contains("\"position\":1"));
+        assert!(result.contains("\"position\":2"));
+        assert!(result.contains("Home"));
+        assert!(result.contains("Writing"));
+    }
+
+    #[test]
+    fn test_breadcrumb_requires_at_least_two_items() {
+        assert!(generate_breadcrumb_json_ld(&[]).is_empty());
+        assert!(generate_breadcrumb_json_ld(&[("Home", "https://example.com/")]).is_empty());
+    }
+
+    #[test]
+    fn test_breadcrumb_escapes_special_chars() {
+        let result = generate_breadcrumb_json_ld(&[
+            ("Home", "https://example.com/"),
+            ("Say \"hello\"", "https://example.com/hi/"),
+        ]);
+        assert!(result.contains("Say \\\"hello\\\""));
+    }
+
+    #[test]
+    fn test_breadcrumb_valid_json() {
+        let result = generate_breadcrumb_json_ld(&[
+            ("Home", "https://example.com/"),
+            ("Section", "https://example.com/section/"),
+            ("Article", "https://example.com/section/article/"),
+        ]);
+        let inner = result
+            .trim_start_matches("<script type=\"application/ld+json\">")
+            .trim_end_matches("</script>");
+        assert!(serde_json::from_str::<serde_json::Value>(inner).is_ok(), "invalid JSON: {inner}");
+    }
+
+    // --- article json-ld ---
+
+    #[test]
+    fn test_article_json_ld_basic() {
+        let result = generate_article_json_ld(
+            "My Article", "A description",
+            "https://example.com/article/",
+            "https://example.com/image.webp",
+            "2024-01-15", None, "Author Name",
+        );
+        assert!(result.contains("BlogPosting"));
+        assert!(result.contains("My Article"));
+        assert!(result.contains("2024-01-15"));
+        assert!(result.contains("Author Name"));
+        assert!(!result.contains("dateModified"));
+    }
+
+    #[test]
+    fn test_article_json_ld_omits_modified_when_same_as_published() {
+        let result = generate_article_json_ld(
+            "Title", "Desc", "https://example.com/", "",
+            "2024-01-15", Some("2024-01-15"), "Author",
+        );
+        assert!(!result.contains("dateModified"));
+    }
+
+    #[test]
+    fn test_article_json_ld_includes_modified_when_different() {
+        let result = generate_article_json_ld(
+            "Title", "Desc", "https://example.com/", "",
+            "2024-01-15", Some("2024-06-01"), "Author",
+        );
+        assert!(result.contains("dateModified"));
+        assert!(result.contains("2024-06-01"));
+    }
+
+    #[test]
+    fn test_article_json_ld_omits_image_when_empty() {
+        let result = generate_article_json_ld(
+            "Title", "Desc", "https://example.com/", "",
+            "2024-01-15", None, "Author",
+        );
+        assert!(!result.contains("image"));
+    }
+
+    #[test]
+    fn test_article_json_ld_escapes_special_chars() {
+        let result = generate_article_json_ld(
+            "Title with \"quotes\"", "Desc & more",
+            "https://example.com/", "", "2024-01-15", None, "Author",
+        );
+        assert!(result.contains("Title with \\\"quotes\\\""));
+        assert!(result.contains("Desc & more")); // & is valid in JSON, not escaped
+    }
+
+    #[test]
+    fn test_article_json_ld_valid_json() {
+        let result = generate_article_json_ld(
+            "Title", "Desc", "https://example.com/article/",
+            "https://example.com/img.webp",
+            "2024-01-15", Some("2024-06-01"), "Author Name",
+        );
+        let inner = result
+            .trim_start_matches("<script type=\"application/ld+json\">")
+            .trim_end_matches("</script>");
+        assert!(serde_json::from_str::<serde_json::Value>(inner).is_ok(), "invalid JSON: {inner}");
+    }
+
+    // --- apply_article_meta ---
+
+    #[test]
+    fn test_apply_article_meta_switches_og_type() {
+        let html = r#"<meta property="og:type" content="website" />"#;
+        let result = apply_article_meta(html, "2024-01-15", None, "Author");
+        assert!(result.contains(r#"og:type" content="article""#));
+        assert!(!result.contains(r#"og:type" content="website""#));
+        assert!(result.contains("article:published_time"));
+    }
+
+    #[test]
+    fn test_apply_article_meta_omits_modified_when_same() {
+        let html = r#"<meta property="og:type" content="website" />"#;
+        let result = apply_article_meta(html, "2024-01-15", Some("2024-01-15"), "Author");
+        assert!(!result.contains("article:modified_time"));
+    }
+
+    #[test]
+    fn test_apply_article_meta_includes_modified_when_different() {
+        let html = r#"<meta property="og:type" content="website" />"#;
+        let result = apply_article_meta(html, "2024-01-15", Some("2024-06-01"), "Author");
+        assert!(result.contains("article:modified_time"));
+        assert!(result.contains("2024-06-01"));
+    }
+
+    // --- pagination ---
+
+    #[test]
+    fn test_pagination_single_page_is_empty() {
+        assert!(generate_pagination_nav(1, 1, "/writing/").is_empty());
+        assert!(generate_pagination_nav(1, 0, "/writing/").is_empty());
+    }
+
+    #[test]
+    fn test_pagination_marks_current_page() {
+        let nav = generate_pagination_nav(2, 3, "/writing/");
+        assert!(nav.contains("pagination__num--current"));
+    }
+
+    #[test]
+    fn test_pagination_page_one_url_is_section_root() {
+        let nav = generate_pagination_nav(2, 3, "/writing/");
+        assert!(nav.contains("href=\"/writing/\""));
+        assert!(nav.contains("href=\"/writing/3/\""));
+    }
+
+    // --- tag nav ---
+
+    #[test]
+    fn test_tag_nav_empty_returns_empty() {
+        assert!(generate_tag_nav(&[], None, "/writing/", "/writing/tags/").is_empty());
+    }
+
+    #[test]
+    fn test_tag_nav_active_tag_marked() {
+        let tags = vec!["rust".to_string(), "web".to_string()];
+        let nav = generate_tag_nav(&tags, Some("rust"), "/writing/", "/writing/tags/");
+        assert!(nav.contains("tag-filter__btn--active"));
+        assert!(nav.contains("/writing/tags/rust/"));
+        assert!(nav.contains("/writing/tags/web/"));
+    }
+
+    #[test]
+    fn test_tag_nav_no_active_marks_all() {
+        let tags = vec!["rust".to_string()];
+        let nav = generate_tag_nav(&tags, None, "/writing/", "/writing/tags/");
+        assert!(nav.contains("tag-filter__btn--active"));
+    }
+
+    // --- related articles ---
+
+    #[test]
+    fn test_related_articles_by_shared_tags() {
+        let current = make_page("Current", "/current/", Some("2024-01-01"), &["rust", "web"]);
+        let related = make_page("Related", "/related/", Some("2024-01-02"), &["rust"]);
+        let unrelated = make_page("Unrelated", "/unrelated/", Some("2024-01-03"), &["python"]);
+        let all = vec![current.clone(), related, unrelated];
+        let result = generate_related_articles(&current, &all);
+        assert!(result.contains("Related"));
+        assert!(!result.contains("Unrelated"));
+        assert!(!result.contains("Current")); // excludes self
+    }
+
+    #[test]
+    fn test_related_articles_empty_when_no_tags() {
+        let current = make_page("Current", "/current/", None, &[]);
+        let all = vec![current.clone()];
+        assert!(generate_related_articles(&current, &all).is_empty());
+    }
+
+    #[test]
+    fn test_related_articles_capped_at_three() {
+        let current = make_page("Current", "/c/", None, &["rust"]);
+        let others: Vec<PageInfo> = (0..5)
+            .map(|i| make_page(&format!("Post {i}"), &format!("/post-{i}/"), None, &["rust"]))
+            .collect();
+        let mut all = vec![current.clone()];
+        all.extend(others);
+        let result = generate_related_articles(&current, &all);
+        assert_eq!(result.matches("<li>").count(), 3);
+    }
+
+    // --- robots.txt ---
+
+    #[test]
+    fn test_robots_txt_contains_required_fields() {
+        let result = generate_robots_txt("https://example.com");
+        assert!(result.contains("User-agent: *"));
+        assert!(result.contains("Allow: /"));
+        assert!(result.contains("Sitemap: https://example.com/sitemap.xml"));
+    }
+
+    #[test]
+    fn test_robots_txt_strips_trailing_slash_from_base() {
+        let result = generate_robots_txt("https://example.com/");
+        assert!(result.contains("Sitemap: https://example.com/sitemap.xml"));
+        assert!(!result.contains("sitemap.xml/"));
+    }
+
+    // --- sitemap ---
+
+    #[test]
+    fn test_sitemap_basic() {
+        let urls = vec![
+            ("/".to_string(), None),
+            ("/about/".to_string(), Some("2024-01-15".to_string())),
+        ];
+        let sitemap = generate_sitemap("https://example.com", &urls);
+        assert!(sitemap.contains("<loc>https://example.com/</loc>"));
+        assert!(sitemap.contains("<loc>https://example.com/about/</loc>"));
+        assert!(sitemap.contains("<lastmod>2024-01-15</lastmod>"));
+    }
+
+    #[test]
+    fn test_sitemap_no_empty_lastmod() {
+        let urls = vec![("/".to_string(), None)];
+        let sitemap = generate_sitemap("https://example.com", &urls);
+        assert!(!sitemap.contains("<lastmod>"));
+    }
+
+    #[test]
+    fn test_sitemap_strips_trailing_slash_from_base() {
+        let urls = vec![("/about/".to_string(), None)];
+        let sitemap = generate_sitemap("https://example.com/", &urls);
+        assert!(sitemap.contains("<loc>https://example.com/about/</loc>"));
+        assert!(!sitemap.contains("<loc>https://example.com//about/</loc>"));
+    }
+
+    #[test]
+    fn test_sitemap_section_index_with_lastmod() {
+        let urls = vec![
+            ("/writing/".to_string(), Some("2024-06-01".to_string())),
+        ];
+        let sitemap = generate_sitemap("https://example.com", &urls);
+        assert!(sitemap.contains("<lastmod>2024-06-01</lastmod>"));
+        assert!(sitemap.contains("<loc>https://example.com/writing/</loc>"));
+    }
+
+    #[test]
+    fn test_sitemap_article_lastmod_from_last_edited() {
+        let urls = vec![
+            ("/writing/my-post/".to_string(), Some("2024-09-15".to_string())),
+        ];
+        let sitemap = generate_sitemap("https://example.com", &urls);
+        assert!(sitemap.contains("<lastmod>2024-09-15</lastmod>"));
+    }
+
+    #[test]
+    fn test_sitemap_escapes_special_chars_in_base_url() {
+        let urls = vec![("/".to_string(), None)];
+        let sitemap = generate_sitemap("https://example.com&test", &urls);
+        assert!(sitemap.contains("https://example.com&amp;test"));
+    }
+
+    // --- rss ---
+
+    #[test]
+    fn test_rss_only_includes_dated_non_index_pages() {
+        let config = make_config();
+        let dated = make_page("Post", "/post/", Some("2024-01-15"), &[]);
+        let undated = make_page("Page", "/page/", None, &[]);
+        let mut index = make_page("Index", "/writing/", Some("2024-01-15"), &[]);
+        index.out_filename = "index.html".to_string();
+        let pages = vec![dated, undated, index];
+        let rss = generate_rss(&config, &pages);
+        assert!(rss.contains("<title>Post</title>"));
+        assert!(!rss.contains("<title>Page</title>"));
+        assert!(!rss.contains("<title>Index</title>"));
+    }
+
+    #[test]
+    fn test_rss_escapes_xml_special_chars() {
+        let config = make_config();
+        let mut page = make_page("Post & Article", "/post/", Some("2024-01-15"), &[]);
+        page.meta.description = Some("A & B < C".to_string());
+        let rss = generate_rss(&config, &vec![page]);
+        assert!(rss.contains("Post &amp; Article"));
+        assert!(rss.contains("A &amp; B &lt; C"));
+    }
 }
 
 pub fn generate_rss(config: &SiteConfig, pages: &[PageInfo]) -> String {

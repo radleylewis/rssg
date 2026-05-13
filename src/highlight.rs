@@ -173,6 +173,100 @@ pub fn highlight_code_blocks(html: &str, ss: &syntect::parsing::SyntaxSet) -> St
     result
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- extract_language ---
+
+    #[test]
+    fn test_extract_language_double_quotes() {
+        assert_eq!(extract_language(r#"<code class="language-rust">"#), Some("rust"));
+        assert_eq!(extract_language(r#"<code class="language-python">"#), Some("python"));
+        assert_eq!(extract_language(r#"<code class="language-javascript">"#), Some("javascript"));
+    }
+
+    #[test]
+    fn test_extract_language_single_quotes() {
+        assert_eq!(extract_language("<code class='language-go'>"), Some("go"));
+    }
+
+    #[test]
+    fn test_extract_language_not_found() {
+        assert_eq!(extract_language("<code>"), None);
+        assert_eq!(extract_language(r#"<code class="other">"#), None);
+        assert_eq!(extract_language(""), None);
+    }
+
+    // --- convert_callouts ---
+
+    #[test]
+    fn test_callout_note() {
+        let html = "<blockquote><p>[!NOTE] My Title\nBody text here.</p></blockquote>";
+        let result = convert_callouts(html);
+        assert!(result.contains("callout--note"), "missing callout class: {result}");
+        assert!(result.contains("My Title"));
+        assert!(result.contains("Body text here."));
+        assert!(!result.contains("<blockquote>"));
+    }
+
+    #[test]
+    fn test_callout_warning() {
+        let html = "<blockquote><p>[!WARNING] Watch out\nDanger ahead.</p></blockquote>";
+        let result = convert_callouts(html);
+        assert!(result.contains("callout--warning"));
+        assert!(result.contains("Watch out"));
+    }
+
+    #[test]
+    fn test_callout_type_is_lowercased_in_class() {
+        let html = "<blockquote><p>[!TIP] A tip\nDetails.</p></blockquote>";
+        let result = convert_callouts(html);
+        assert!(result.contains("callout--tip"));
+    }
+
+    #[test]
+    fn test_callout_without_body() {
+        let html = "<blockquote><p>[!NOTE] Just a title</p></blockquote>";
+        let result = convert_callouts(html);
+        assert!(result.contains("callout--note"));
+        assert!(result.contains("Just a title"));
+    }
+
+    #[test]
+    fn test_regular_blockquote_unchanged() {
+        let html = "<blockquote><p>Just a regular quote.</p></blockquote>";
+        let result = convert_callouts(html);
+        assert_eq!(result, html);
+    }
+
+    #[test]
+    fn test_no_blockquotes_unchanged() {
+        let html = "<p>No blockquotes here.</p>";
+        assert_eq!(convert_callouts(html), html);
+    }
+
+    #[test]
+    fn test_multiple_callouts() {
+        let html = "<blockquote><p>[!NOTE] First\nbody</p></blockquote>\
+                    <p>between</p>\
+                    <blockquote><p>[!WARNING] Second\nbody</p></blockquote>";
+        let result = convert_callouts(html);
+        assert!(result.contains("callout--note"));
+        assert!(result.contains("callout--warning"));
+        assert!(result.contains("between"));
+    }
+
+    #[test]
+    fn test_mixed_callout_and_regular_blockquote() {
+        let html = "<blockquote><p>[!NOTE] A note\nbody</p></blockquote>\
+                    <blockquote><p>Regular quote.</p></blockquote>";
+        let result = convert_callouts(html);
+        assert!(result.contains("callout--note"));
+        assert!(result.contains("<blockquote><p>Regular quote.</p></blockquote>"));
+    }
+}
+
 pub fn syntax_highlight_css(ts: &ThemeSet) -> String {
     let light = ts
         .themes
