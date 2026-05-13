@@ -411,9 +411,9 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Global tag pages (parallel) ---
     fs::create_dir_all("dist/tags")?;
-    let global_tag_results: Vec<io::Result<(String, Option<String>)>> = tag_map
+    let global_tag_results: Vec<io::Result<()>> = tag_map
         .par_iter()
-        .map(|(tag_slug, indices)| -> io::Result<(String, Option<String>)> {
+        .map(|(tag_slug, indices)| -> io::Result<()> {
             let tagged_pages: Vec<&PageInfo> = indices.iter().map(|&i| &pages[i]).collect();
             let tag_url = format!("/tags/{tag_slug}/");
             let tag_title = html_escape(tag_slug);
@@ -464,11 +464,11 @@ pub fn build_project() -> Result<(), Box<dyn std::error::Error>> {
                     rendered.replace("</head>", &format!("{breadcrumb}</head>")),
                 )?;
             }
-            Ok((tag_url, None))
+            Ok(())
         })
         .collect();
     for result in global_tag_results {
-        urls.push(result?);
+        result?;
     }
 
     fs::write("dist/sitemap.xml", generate_sitemap(&config.base_url, &urls))?;
